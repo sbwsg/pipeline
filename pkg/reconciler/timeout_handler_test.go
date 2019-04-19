@@ -2,6 +2,8 @@ package reconciler
 
 import (
 	"fmt"
+	"log"
+	"math/rand"
 	"sync"
 	"testing"
 	"time"
@@ -257,5 +259,74 @@ func TestWithNoFunc(t *testing.T) {
 		}
 	}()
 	testHandler.CheckTimeouts()
+}
 
+// TestBackoffTaskRun validates that BackoffTaskRun returns the expected count of backoffs
+// and that it doesn't generate backoff durations outside the expected range.
+func TestBackoffTaskRun(t *testing.T) {
+	taskRunNotStarted := tb.TaskRun("test-taskrun-not-started", testNs, tb.TaskRunSpec(
+		tb.TaskRunTaskRef(simpleTask.Name, tb.TaskRefAPIVersion("a1")),
+	), tb.TaskRunStatus(tb.Condition(apis.Condition{
+		Type:   apis.ConditionSucceeded,
+		Status: corev1.ConditionUnknown}),
+	))
+	d := test.Data{
+		TaskRuns: []*v1alpha1.TaskRun{taskRunNotStarted},
+		Tasks:    []*v1alpha1.Task{simpleTask},
+		Namespaces: []*corev1.Namespace{{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: testNs,
+			},
+		}},
+	}
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	c, _ := test.SeedTestData(d)
+	observer, _ := observer.New(zap.InfoLevel)
+	th := NewTimeoutHandler(c.Kube, c.Pipeline, stopCh, zap.New(observer).Sugar())
+	counts := []uint{1, 2, 3, 4, 5, 6, 7}
+	for _, expectedBackoffCount := range counts {
+		count, _, _ := th.BackoffTaskRun(taskRunNotStarted)
+		if count != expectedBackoffCount {
+			t.Fatalf("Expected backoff count %d but received %d", expectedBackoffCount, count)
+		}
+	}
+}
+
+// TestBackoffTaskRunFiresCallback validates that BackoffTaskRun returns a func that, when
+// called, will execute TimeoutSet's TaskRun callback before or at the expected
+// backoff time.
+func TestBackoffTaskRunFiresCallback(t *testing.T) {
+	taskRunNotStarted := tb.TaskRun("test-taskrun-not-started", testNs, tb.TaskRunSpec(
+		tb.TaskRunTaskRef(simpleTask.Name, tb.TaskRefAPIVersion("a1")),
+	), tb.TaskRunStatus(tb.Condition(apis.Condition{
+		Type:   apis.ConditionSucceeded,
+		Status: corev1.ConditionUnknown}),
+	))
+	d := test.Data{
+		TaskRuns: []*v1alpha1.TaskRun{taskRunNotStarted},
+		Tasks:    []*v1alpha1.Task{simpleTask},
+		Namespaces: []*corev1.Namespace{{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: testNs,
+			},
+		}},
+	}
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	c, _ := test.SeedTestData(d)
+	observer, _ := observer.New(zap.InfoLevel)
+	th := NewTimeoutHandler(c.Kube, c.Pipeline, stopCh, zap.New(observer).Sugar())
+	startTime := time.Now()
+	rand.Seed(2) // force a jitter of 1
+	OnBackoffDone := func(_ interface{}) {
+		dur := time.Now().Sub(startTime)
+		log.Printf("%v", dur)
+		if time.Now().Sub(startTime) > time.Duration(2)*time.Second {
+			t.Fatalf("Expected first backoff period to last between 0 and 2 seconds")
+		}
+	}
+	th.SetTaskRunCallbackFunc(OnBackoffDone)
+	_, _, startBackoff := th.BackoffTaskRun(taskRunNotStarted)
+	startBackoff()
 }

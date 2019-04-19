@@ -1,6 +1,9 @@
 package reconciler
 
 import (
+	"log"
+	"math"
+	"math/rand"
 	"sync"
 
 	"time"
@@ -17,7 +20,8 @@ var (
 )
 
 const (
-	defaultTimeout = 10 * time.Minute
+	defaultTimeout        = 10 * time.Minute
+	maximumBackoffSeconds = 120
 )
 
 // StatusKey interface to be implemented by Taskrun Pipelinerun types
@@ -35,6 +39,8 @@ type TimeoutSet struct {
 	stopCh                  <-chan struct{}
 	done                    map[string]chan bool
 	doneMut                 sync.Mutex
+	backoffs                map[string]uint
+	backoffsMut             sync.Mutex
 }
 
 // NewTimeoutHandler returns TimeoutSet filled structure
@@ -49,7 +55,7 @@ func NewTimeoutHandler(
 		pipelineclientset: pipelineclientset,
 		stopCh:            stopCh,
 		done:              make(map[string]chan bool),
-		doneMut:           sync.Mutex{},
+		backoffs:          make(map[string]uint),
 		logger:            logger,
 	}
 }
@@ -67,8 +73,13 @@ func (t *TimeoutSet) SetPipelineRunCallbackFunc(f func(interface{})) {
 // Release function deletes key from timeout map
 func (t *TimeoutSet) Release(runObj StatusKey) {
 	key := runObj.GetRunKey()
+
 	t.doneMut.Lock()
+	t.backoffsMut.Lock()
+
+	// Unlocks executed LIFO. Order must match previous Locks to avoid deadlock.
 	defer t.doneMut.Unlock()
+	defer t.backoffsMut.Unlock()
 
 	if finished, ok := t.done[key]; ok {
 		delete(t.done, key)
@@ -170,25 +181,61 @@ func (t *TimeoutSet) waitRun(runObj StatusKey, timeout time.Duration, startTime 
 		return
 	}
 	runtime := time.Since(startTime.Time)
-	finished := t.getOrCreateFinishedChan(runObj)
-
 	defer t.Release(runObj)
-
 	t.logger.Infof("About to start timeout timer for %s. started at %s, timeout is %s, running for %s", runObj.GetRunKey(), startTime.Time, timeout, runtime)
+	waitDuration := timeout - runtime
+	t.runLater(runObj, waitDuration, callback)
+}
 
+// BackoffTaskRun computes a backoff period to apply to a given TaskRun.
+// This function returns the number of backoffs the TaskRun has undergone, the calculated
+// backoff period that will be applied and a start function that, when called,
+// will block the current go routine until the backoff period has passed and then
+// fire the TimeoutSet's assigned TaskRun callback.
+func (t *TimeoutSet) BackoffTaskRun(tr *v1alpha1.TaskRun) (uint, time.Duration, func()) {
+	count := t.incrementBackoffCount(tr)
+	expBackoff := int(math.Exp2(float64(count)))
+	jittered := rand.Intn(expBackoff + 1)
+	if jittered > maximumBackoffSeconds {
+		jittered = maximumBackoffSeconds
+	}
+	log.Printf("jittered amount = %d", expBackoff-jittered)
+	duration := time.Duration(jittered) * time.Second
+	return count, duration, func() {
+		t.runLater(tr, duration, t.taskRunCallbackFunc)
+	}
+}
+
+func (t *TimeoutSet) incrementBackoffCount(runObj StatusKey) uint {
+	runKey := runObj.GetRunKey()
+	var count uint
+	t.backoffsMut.Lock()
+	defer t.backoffsMut.Unlock()
+	if existingBackoffCount, ok := t.backoffs[runKey]; ok {
+		count = existingBackoffCount + 1
+	} else {
+		count = 1
+	}
+	t.backoffs[runKey] = count
+	return count
+}
+
+func (t *TimeoutSet) runLater(runObj StatusKey, waitDuration time.Duration, callback func(interface{})) {
+	finished := t.getOrCreateFinishedChan(runObj)
+	runKey := runObj.GetRunKey()
 	select {
 	case <-t.stopCh:
-		t.logger.Infof("Stopping timeout timer for %s", runObj.GetRunKey())
+		t.logger.Infof("Received stop signal, cancelling timer for %q", runKey)
 		return
 	case <-finished:
-		t.logger.Infof("%s finished, stopping the timeout timer", runObj.GetRunKey())
+		t.logger.Infof("%q finished, cancelling timer", runKey)
 		return
-	case <-time.After(timeout - runtime):
-		t.logger.Infof("Timeout timer for %s has timed out (started at %s, timeout is %s, running for %s", runObj.GetRunKey(), startTime, timeout, time.Since(startTime.Time))
+	case <-time.After(waitDuration):
 		if callback != nil {
+			t.logger.Infof("Timer for %q has fired, running callback", runKey)
 			callback(runObj)
 		} else {
-			defaultFunc(runObj)
+			t.logger.Infof("Timer was fired for %q but no callback was provided; nothing to do", runKey)
 		}
 	}
 }

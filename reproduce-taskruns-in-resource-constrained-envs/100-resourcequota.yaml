@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: limit-cpus
+spec:
+  hard:
+    requests.cpu: "10"
+    limits.cpu: "10"

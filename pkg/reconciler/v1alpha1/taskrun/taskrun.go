@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/knative/pkg/apis"
@@ -61,6 +62,10 @@ const (
 
 	// reasonTimedOut indicates that the TaskRun has taken longer than its configured timeout
 	reasonTimedOut = "TaskRunTimeout"
+
+	// reasonExceedsResources indicates that the TaskRun failed to create a pod due to
+	// resource constraints
+	reasonExceededResources = "ExceededAvailableResources"
 
 	// taskRunAgentName defines logging agent name for TaskRun Controller
 	taskRunAgentName = "taskrun-controller"
@@ -284,9 +289,22 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1alpha1.TaskRun) error 
 		return err
 	}
 	if pod == nil {
-		// Pod is not present, create pod.
 		pod, err = c.createPod(tr, rtr.TaskSpec, rtr.TaskName)
-		if err != nil {
+		if isExceededResourcesError(err) {
+			count, duration, retry := c.timeoutHandler.BackoffTaskRun(tr)
+			go retry()
+			event := fmt.Sprintf("TaskRun pod %q exceeded available resources", tr.Name)
+			detail := fmt.Sprintf("attempted %d times, reattempting in %s", count, duration.String())
+			c.Recorder.Eventf(tr, corev1.EventTypeWarning, reasonExceededResources, event)
+			c.Logger.Warnf("%s, %s", event, detail)
+			tr.Status.SetCondition(&apis.Condition{
+				Type:    apis.ConditionSucceeded,
+				Status:  corev1.ConditionUnknown,
+				Reason:  reasonExceededResources,
+				Message: detail,
+			})
+			return nil
+		} else if err != nil {
 			// This Run has failed, so we need to mark it as failed and stop reconciling it
 			var msg string
 			if tr.Spec.TaskRef != nil {
@@ -303,8 +321,9 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1alpha1.TaskRun) error 
 			c.Recorder.Eventf(tr, corev1.EventTypeWarning, "BuildCreationFailed", "Failed to create build pod %q: %v", tr.Name, err)
 			c.Logger.Errorf("Failed to create build pod for task %q :%v", err, tr.Name)
 			return nil
+		} else {
+			go c.timeoutHandler.WaitTaskRun(tr, tr.Status.StartTime)
 		}
-		go c.timeoutHandler.WaitTaskRun(tr, tr.Status.StartTime)
 	}
 	if err := c.tracker.Track(tr.GetBuildPodRef(), tr); err != nil {
 		c.Logger.Errorf("Failed to create tracker for build pod %q for taskrun %q: %v", tr.Name, tr.Name, err)
@@ -322,6 +341,12 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1alpha1.TaskRun) error 
 	c.Logger.Infof("Successfully reconciled taskrun %s/%s with status: %#v", tr.Name, tr.Namespace, after)
 
 	return nil
+}
+
+// TODO(sbws): this func only checks for ResourceQuota denials. Also needs to check if the
+// node didn't have enough resources to satisfy the pod's requirements.
+func isExceededResourcesError(err error) bool {
+	return err != nil && errors.IsForbidden(err) && strings.Contains(err.Error(), "exceeded quota")
 }
 
 func updateStatusFromPod(taskRun *v1alpha1.TaskRun, pod *corev1.Pod) {
@@ -536,10 +561,13 @@ func (c *Reconciler) checkTimeout(tr *v1alpha1.TaskRun, ts *v1alpha1.TaskSpec, d
 
 		c.Logger.Infof("Checking timeout for TaskRun %q (startTime %s, timeout %s, runtime %s)", tr.Name, tr.Status.StartTime, timeout, runtime)
 		if runtime > timeout {
-			c.Logger.Infof("TaskRun %q is timeout (runtime %s over %s), deleting pod", tr.Name, runtime, timeout)
-			if err := dp(tr.Status.PodName, &metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
-				c.Logger.Errorf("Failed to terminate pod: %v", err)
-				return true, err
+			c.Logger.Infof("TaskRun %q is timeout (runtime %s over %s)", tr.Name, runtime, timeout)
+			podWasCreated := tr.Status.PodName != ""
+			if podWasCreated {
+				if err := dp(tr.Status.PodName, &metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
+					c.Logger.Errorf("Failed to terminate pod: %v", err)
+					return true, err
+				}
 			}
 
 			timeoutMsg := fmt.Sprintf("TaskRun %q failed to finish within %q", tr.Name, timeout.String())
