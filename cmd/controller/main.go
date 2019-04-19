@@ -114,6 +114,7 @@ func main() {
 	pipelineInformer := pipelineInformerFactory.Tekton().V1alpha1().Pipelines()
 	pipelineRunInformer := pipelineInformerFactory.Tekton().V1alpha1().PipelineRuns()
 	timeoutHandler := reconciler.NewTimeoutHandler(kubeClient, pipelineClient, stopCh, logger)
+	taskRunQuotaRetryHandler := reconciler.NewQuotaRetryHandler(stopCh, logger)
 
 	trc := taskrun.NewController(opt,
 		taskRunInformer,
@@ -123,6 +124,7 @@ func main() {
 		podInformer,
 		nil, //entrypoint cache will be initialized by controller if not provided
 		timeoutHandler,
+		taskRunQuotaRetryHandler,
 	)
 	prc := pipelinerun.NewController(opt,
 		pipelineRunInformer,
@@ -142,6 +144,8 @@ func main() {
 	timeoutHandler.SetTaskRunCallbackFunc(trc.Enqueue)
 	timeoutHandler.SetPipelineRunCallbackFunc(prc.Enqueue)
 	timeoutHandler.CheckTimeouts()
+
+	taskRunQuotaRetryHandler.SetRetryCallback(trc.Enqueue)
 
 	// Watch the logging config map and dynamically update logging levels.
 	configMapWatcher.Watch(logging.ConfigName, logging.UpdateLevelFromConfigMap(logger, atomicLevel, logging.ControllerLogKey))
