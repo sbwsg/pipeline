@@ -87,22 +87,23 @@ var (
 )
 
 const (
-	// Prefixes to add to the name of the containers.
-	containerPrefix            = "step-"
-	unnamedInitContainerPrefix = "step-unnamed-"
+	// Prefixes to add to the name of the init containers.
+	// IMPORTANT: Changing these values without changing fluentd collection configuration
+	// will break log collection for init containers.
+	containerPrefix            = "build-step-"
+	unnamedInitContainerPrefix = "build-step-unnamed-"
 	// Name of the credential initialization container.
 	credsInit = "credential-initializer"
 	// Name of the working dir initialization container.
-	workingDirInit = "working-dir-initializer"
+	workingDirInit       = "working-dir-initializer"
+	ReadyAnnotation      = "tekton.dev/ready"
+	readyAnnotationValue = "READY"
 )
 
 var (
 	// The container used to initialize credentials before the build runs.
 	credsImage = flag.String("creds-image", "override-with-creds:latest",
 		"The container image for preparing our Build's credentials.")
-	// The container that just prints Task completed successfully.
-	nopImage = flag.String("nop-image", "override-with-nop:latest",
-		"The container image run at the end of the build to log task success")
 )
 
 func makeCredentialInitializer(serviceAccountName, namespace string, kubeclient kubernetes.Interface) (*corev1.Container, []corev1.Volume, error) {
@@ -229,6 +230,14 @@ func TryGetPod(taskRunStatus v1alpha1.TaskRunStatus, gp GetPod) (*corev1.Pod, er
 // MakePod converts TaskRun and TaskSpec objects to a Pod which implements the taskrun specified
 // by the supplied CRD.
 func MakePod(taskRun *v1alpha1.TaskRun, taskSpec v1alpha1.TaskSpec, kubeclient kubernetes.Interface, cache *entrypoint.Cache, logger *zap.SugaredLogger) (*corev1.Pod, error) {
+	// Copy annotations on the build through to the underlying pod to allow users
+	// to specify pod annotations.
+	annotations := map[string]string{}
+	for key, val := range taskRun.Annotations {
+		annotations[key] = val
+	}
+	annotations[ReadyAnnotation] = ""
+
 	cred, secrets, err := makeCredentialInitializer(taskRun.Spec.ServiceAccount, taskRun.Namespace, kubeclient)
 	if err != nil {
 		return nil, err
@@ -290,12 +299,6 @@ func MakePod(taskRun *v1alpha1.TaskRun, taskSpec v1alpha1.TaskSpec, kubeclient k
 	}
 	gibberish := hex.EncodeToString(b)
 
-	nopContainer := &corev1.Container{Name: "nop", Image: *nopImage, Command: []string{"/ko-app/nop"}}
-	if err := entrypoint.RedirectStep(cache, len(podContainers), nopContainer, kubeclient, taskRun, logger); err != nil {
-		return nil, err
-	}
-	podContainers = append(podContainers, *nopContainer)
-
 	mergedInitContainers, err := merge.CombineStepsWithContainerTemplate(taskSpec.ContainerTemplate, initContainers)
 	if err != nil {
 		return nil, err
@@ -333,6 +336,25 @@ func MakePod(taskRun *v1alpha1.TaskRun, taskSpec v1alpha1.TaskSpec, kubeclient k
 			Affinity:           taskRun.Spec.Affinity,
 		},
 	}, nil
+}
+
+type UpdatePod func(*corev1.Pod) (*corev1.Pod, error)
+
+// AddReadyAnnotation adds the ready annotation if it is not present.
+// Returns true if the pod needs updating
+func AddReadyAnnotation(p *corev1.Pod, update UpdatePod) error {
+	if p.ObjectMeta.Annotations[ReadyAnnotation] != readyAnnotationValue {
+		p.ObjectMeta.Annotations[ReadyAnnotation] = readyAnnotationValue
+		_, err := update(p)
+
+		return err
+	}
+
+	return nil
+}
+
+func IsContainerStep(name string) bool {
+	return strings.HasPrefix(name, containerPrefix)
 }
 
 // makeLabels constructs the labels we will propagate from TaskRuns to Pods.
