@@ -151,6 +151,21 @@ var (
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
 	}
+	downward = corev1.Volume{
+		Name: "downward",
+		VolumeSource: corev1.VolumeSource{
+			DownwardAPI: &corev1.DownwardAPIVolumeSource{
+				Items: []corev1.DownwardAPIVolumeFile{
+					{
+						Path: "ready",
+						FieldRef: &corev1.ObjectFieldSelector{
+							FieldPath: "metadata.annotations['tekton.dev/ready']",
+						},
+					},
+				},
+			},
+		},
+	}
 
 	getCredentialsInitContainer = func(suffix string, ops ...tb.ContainerOp) tb.PodSpecOp {
 		actualOps := []tb.ContainerOp{
@@ -375,22 +390,23 @@ func TestReconcile(t *testing.T) {
 		name:    "success",
 		taskRun: taskRunSuccess,
 		wantPod: tb.Pod("test-taskrun-run-success-pod-123456", "foo",
-			tb.PodAnnotation("sidecar.istio.io/inject", "false"),
+			tb.PodAnnotation("tekton.dev/ready", ""),
 			tb.PodLabel(taskNameLabelKey, "test-task"),
 			tb.PodLabel(taskRunNameLabelKey, "test-taskrun-run-success"),
 			tb.PodOwnerReference("TaskRun", "test-taskrun-run-success",
 				tb.OwnerReferenceAPIVersion(currentApiVersion)),
 			tb.PodSpec(
-				tb.PodVolumes(toolsVolume, workspaceVolume, homeVolume),
+				tb.PodVolumes(toolsVolume, downward, workspaceVolume, homeVolume),
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj"),
 				getPlaceToolsInitContainer(),
 				tb.PodContainer("step-simple-step", "foo",
 					tb.Command(entrypointLocation),
-					tb.Args("-wait_file", "", "-post_file", "/builder/tools/0", "-entrypoint", "/mycmd", "--"),
+					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
 					tb.EnvVar("HOME", "/builder/home"),
 					tb.VolumeMount("tools", "/builder/tools"),
+					tb.VolumeMount("downward", "/builder/downward"),
 					tb.VolumeMount("workspace", workspaceDir),
 					tb.VolumeMount("home", "/builder/home"),
 					tb.Resources(tb.Requests(
@@ -398,11 +414,6 @@ func TestReconcile(t *testing.T) {
 						tb.Memory("0"),
 						tb.EphemeralStorage("0"),
 					)),
-				),
-				tb.PodContainer("nop", "override-with-nop:latest",
-					tb.Command("/builder/tools/entrypoint"),
-					tb.Args("-wait_file", "/builder/tools/0", "-post_file", "/builder/tools/1", "-entrypoint", "/ko-app/nop", "--"),
-					tb.VolumeMount(entrypoint.MountName, entrypoint.MountPoint),
 				),
 			),
 		),
@@ -410,23 +421,24 @@ func TestReconcile(t *testing.T) {
 		name:    "serviceaccount",
 		taskRun: taskRunWithSaSuccess,
 		wantPod: tb.Pod("test-taskrun-with-sa-run-success-pod-123456", "foo",
-			tb.PodAnnotation("sidecar.istio.io/inject", "false"),
+			tb.PodAnnotation("tekton.dev/ready", ""),
 			tb.PodLabel(taskNameLabelKey, "test-with-sa"),
 			tb.PodLabel(taskRunNameLabelKey, "test-taskrun-with-sa-run-success"),
 			tb.PodOwnerReference("TaskRun", "test-taskrun-with-sa-run-success",
 				tb.OwnerReferenceAPIVersion(currentApiVersion)),
 			tb.PodSpec(
 				tb.PodServiceAccountName("test-sa"),
-				tb.PodVolumes(toolsVolume, workspaceVolume, homeVolume),
+				tb.PodVolumes(toolsVolume, downward, workspaceVolume, homeVolume),
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj"),
 				getPlaceToolsInitContainer(),
 				tb.PodContainer("step-sa-step", "foo",
 					tb.Command(entrypointLocation),
-					tb.Args("-wait_file", "", "-post_file", "/builder/tools/0", "-entrypoint", "/mycmd", "--"),
+					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
 					tb.EnvVar("HOME", "/builder/home"),
 					tb.VolumeMount("tools", "/builder/tools"),
+					tb.VolumeMount("downward", "/builder/downward"),
 					tb.VolumeMount("workspace", workspaceDir),
 					tb.VolumeMount("home", "/builder/home"),
 					tb.Resources(tb.Requests(
@@ -435,18 +447,13 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("nop", "override-with-nop:latest",
-					tb.Command("/builder/tools/entrypoint"),
-					tb.Args("-wait_file", "/builder/tools/0", "-post_file", "/builder/tools/1", "-entrypoint", "/ko-app/nop", "--"),
-					tb.VolumeMount(entrypoint.MountName, entrypoint.MountPoint),
-				),
 			),
 		),
 	}, {
 		name:    "params",
 		taskRun: taskRunTemplating,
 		wantPod: tb.Pod("test-taskrun-templating-pod-123456", "foo",
-			tb.PodAnnotation("sidecar.istio.io/inject", "false"),
+			tb.PodAnnotation("tekton.dev/ready", ""),
 			tb.PodLabel(taskNameLabelKey, "test-task-with-templating"),
 			tb.PodLabel(taskRunNameLabelKey, "test-taskrun-templating"),
 			tb.PodOwnerReference("TaskRun", "test-taskrun-templating",
@@ -461,17 +468,18 @@ func TestReconcile(t *testing.T) {
 							},
 						},
 					},
-				}, toolsVolume, workspaceVolume, homeVolume),
+				}, toolsVolume, downward, workspaceVolume, homeVolume),
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("78c5n"),
 				getPlaceToolsInitContainer(),
 				tb.PodContainer("step-git-source-git-resource-mssqb", "override-with-git:latest",
 					tb.Command(entrypointLocation),
-					tb.Args("-wait_file", "", "-post_file", "/builder/tools/0", "-entrypoint", "/ko-app/git-init", "--",
+					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/ko-app/git-init", "--",
 						"-url", "https://foo.git", "-revision", "master", "-path", "/workspace/workspace"),
 					tb.WorkingDir(workspaceDir),
 					tb.EnvVar("HOME", "/builder/home"),
 					tb.VolumeMount("tools", "/builder/tools"),
+					tb.VolumeMount("downward", "/builder/downward"),
 					tb.VolumeMount("workspace", workspaceDir),
 					tb.VolumeMount("home", "/builder/home"),
 					tb.Resources(tb.Requests(
@@ -541,18 +549,13 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("nop", "override-with-nop:latest",
-					tb.Command("/builder/tools/entrypoint"),
-					tb.Args("-wait_file", "/builder/tools/4", "-post_file", "/builder/tools/5", "-entrypoint", "/ko-app/nop", "--"),
-					tb.VolumeMount(entrypoint.MountName, entrypoint.MountPoint),
-				),
 			),
 		),
 	}, {
 		name:    "wrap-steps",
 		taskRun: taskRunInputOutput,
 		wantPod: tb.Pod("test-taskrun-input-output-pod-123456", "foo",
-			tb.PodAnnotation("sidecar.istio.io/inject", "false"),
+			tb.PodAnnotation("tekton.dev/ready", ""),
 			tb.PodLabel(taskNameLabelKey, "test-output-task"),
 			tb.PodLabel(taskRunNameLabelKey, "test-taskrun-input-output"),
 			tb.PodOwnerReference("TaskRun", "test-taskrun-input-output",
@@ -566,17 +569,18 @@ func TestReconcile(t *testing.T) {
 							ReadOnly:  false,
 						},
 					},
-				}, toolsVolume, workspaceVolume, homeVolume),
+				}, toolsVolume, downward, workspaceVolume, homeVolume),
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("vr6ds"),
 				getPlaceToolsInitContainer(),
 				tb.PodContainer("step-create-dir-another-git-resource-78c5n", "override-with-bash-noop:latest",
 					tb.Command(entrypointLocation),
-					tb.Args("-wait_file", "", "-post_file", "/builder/tools/0", "-entrypoint", "/ko-app/bash", "--",
+					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/ko-app/bash", "--",
 						"-args", "mkdir -p /workspace/another-git-resource"),
 					tb.WorkingDir(workspaceDir),
 					tb.EnvVar("HOME", "/builder/home"),
 					tb.VolumeMount("tools", "/builder/tools"),
+					tb.VolumeMount("downward", "/builder/downward"),
 					tb.VolumeMount("workspace", workspaceDir),
 					tb.VolumeMount("home", "/builder/home"),
 					tb.Resources(tb.Requests(
@@ -678,33 +682,29 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("nop", "override-with-nop:latest",
-					tb.Command("/builder/tools/entrypoint"),
-					tb.Args("-wait_file", "/builder/tools/6", "-post_file", "/builder/tools/7", "-entrypoint", "/ko-app/nop", "--"),
-					tb.VolumeMount(entrypoint.MountName, entrypoint.MountPoint),
-				),
 			),
 		),
 	}, {
 		name:    "taskrun-with-taskspec",
 		taskRun: taskRunWithTaskSpec,
 		wantPod: tb.Pod("test-taskrun-with-taskspec-pod-123456", "foo",
-			tb.PodAnnotation("sidecar.istio.io/inject", "false"),
+			tb.PodAnnotation("tekton.dev/ready", ""),
 			tb.PodLabel(taskRunNameLabelKey, "test-taskrun-with-taskspec"),
 			tb.PodOwnerReference("TaskRun", "test-taskrun-with-taskspec",
 				tb.OwnerReferenceAPIVersion(currentApiVersion)),
 			tb.PodSpec(
-				tb.PodVolumes(toolsVolume, workspaceVolume, homeVolume),
+				tb.PodVolumes(toolsVolume, downward, workspaceVolume, homeVolume),
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("mz4c7"),
 				getPlaceToolsInitContainer(),
 				tb.PodContainer("step-git-source-git-resource-9l9zj", "override-with-git:latest",
 					tb.Command(entrypointLocation),
-					tb.Args("-wait_file", "", "-post_file", "/builder/tools/0", "-entrypoint", "/ko-app/git-init", "--",
+					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/ko-app/git-init", "--",
 						"-url", "https://foo.git", "-revision", "master", "-path", "/workspace/workspace"),
 					tb.WorkingDir(workspaceDir),
 					tb.EnvVar("HOME", "/builder/home"),
 					tb.VolumeMount("tools", "/builder/tools"),
+					tb.VolumeMount("downward", "/builder/downward"),
 					tb.VolumeMount("workspace", workspaceDir),
 					tb.VolumeMount("home", "/builder/home"),
 					tb.Resources(tb.Requests(
@@ -728,33 +728,29 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("nop", "override-with-nop:latest",
-					tb.Command("/builder/tools/entrypoint"),
-					tb.Args("-wait_file", "/builder/tools/1", "-post_file", "/builder/tools/2", "-entrypoint", "/ko-app/nop", "--"),
-					tb.VolumeMount(entrypoint.MountName, entrypoint.MountPoint),
-				),
 			),
 		),
 	}, {
 		name:    "success-with-cluster-task",
 		taskRun: taskRunWithClusterTask,
 		wantPod: tb.Pod("test-taskrun-with-cluster-task-pod-123456", "foo",
-			tb.PodAnnotation("sidecar.istio.io/inject", "false"),
+			tb.PodAnnotation("tekton.dev/ready", ""),
 			tb.PodLabel(taskNameLabelKey, "test-cluster-task"),
 			tb.PodLabel(taskRunNameLabelKey, "test-taskrun-with-cluster-task"),
 			tb.PodOwnerReference("TaskRun", "test-taskrun-with-cluster-task",
 				tb.OwnerReferenceAPIVersion(currentApiVersion)),
 			tb.PodSpec(
-				tb.PodVolumes(toolsVolume, workspaceVolume, homeVolume),
+				tb.PodVolumes(toolsVolume, downward, workspaceVolume, homeVolume),
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj"),
 				getPlaceToolsInitContainer(),
 				tb.PodContainer("step-simple-step", "foo",
 					tb.Command(entrypointLocation),
-					tb.Args("-wait_file", "", "-post_file", "/builder/tools/0", "-entrypoint", "/mycmd", "--"),
+					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
 					tb.EnvVar("HOME", "/builder/home"),
 					tb.VolumeMount("tools", "/builder/tools"),
+					tb.VolumeMount("downward", "/builder/downward"),
 					tb.VolumeMount("workspace", workspaceDir),
 					tb.VolumeMount("home", "/builder/home"),
 					tb.Resources(tb.Requests(
@@ -763,34 +759,30 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("nop", "override-with-nop:latest",
-					tb.Command("/builder/tools/entrypoint"),
-					tb.Args("-wait_file", "/builder/tools/0", "-post_file", "/builder/tools/1", "-entrypoint", "/ko-app/nop", "--"),
-					tb.VolumeMount(entrypoint.MountName, entrypoint.MountPoint),
-				),
 			),
 		),
 	}, {
 		name:    "taskrun-with-resource-spec-task-spec",
 		taskRun: taskRunWithResourceSpecAndTaskSpec,
 		wantPod: tb.Pod("test-taskrun-with-resource-spec-pod-123456", "foo",
-			tb.PodAnnotation("sidecar.istio.io/inject", "false"),
+			tb.PodAnnotation("tekton.dev/ready", ""),
 			tb.PodLabel(taskRunNameLabelKey, "test-taskrun-with-resource-spec"),
 			tb.PodOwnerReference("TaskRun", "test-taskrun-with-resource-spec",
 				tb.OwnerReferenceAPIVersion(currentApiVersion)),
 			tb.PodSpec(
-				tb.PodVolumes(toolsVolume, workspaceVolume, homeVolume),
+				tb.PodVolumes(toolsVolume, downward, workspaceVolume, homeVolume),
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("mz4c7"),
 				getPlaceToolsInitContainer(),
 				tb.PodContainer("step-git-source-workspace-9l9zj", "override-with-git:latest",
 					tb.Command(entrypointLocation),
-					tb.Args("-wait_file", "", "-post_file", "/builder/tools/0", "-entrypoint", "/ko-app/git-init", "--",
+					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/ko-app/git-init", "--",
 						"-url", "github.com/foo/bar.git", "-revision", "rel-can", "-path",
 						"/workspace/workspace"),
 					tb.WorkingDir(workspaceDir),
 					tb.EnvVar("HOME", "/builder/home"),
 					tb.VolumeMount("tools", "/builder/tools"),
+					tb.VolumeMount("downward", "/builder/downward"),
 					tb.VolumeMount("workspace", workspaceDir),
 					tb.VolumeMount("home", "/builder/home"),
 					tb.Resources(tb.Requests(
@@ -813,34 +805,30 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("nop", "override-with-nop:latest",
-					tb.Command("/builder/tools/entrypoint"),
-					tb.Args("-wait_file", "/builder/tools/1", "-post_file", "/builder/tools/2", "-entrypoint", "/ko-app/nop", "--"),
-					tb.VolumeMount(entrypoint.MountName, entrypoint.MountPoint),
-				),
 			),
 		),
 	}, {
 		name:    "taskrun-with-labels",
 		taskRun: taskRunWithLabels,
 		wantPod: tb.Pod("test-taskrun-with-labels-pod-123456", "foo",
-			tb.PodAnnotation("sidecar.istio.io/inject", "false"),
+			tb.PodAnnotation("tekton.dev/ready", ""),
 			tb.PodLabel("TaskRunLabel", "TaskRunValue"),
 			tb.PodLabel(taskNameLabelKey, "test-task"),
 			tb.PodLabel(taskRunNameLabelKey, "test-taskrun-with-labels"),
 			tb.PodOwnerReference("TaskRun", "test-taskrun-with-labels",
 				tb.OwnerReferenceAPIVersion(currentApiVersion)),
 			tb.PodSpec(
-				tb.PodVolumes(toolsVolume, workspaceVolume, homeVolume),
+				tb.PodVolumes(toolsVolume, downward, workspaceVolume, homeVolume),
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj"),
 				getPlaceToolsInitContainer(),
 				tb.PodContainer("step-simple-step", "foo",
 					tb.Command(entrypointLocation),
-					tb.Args("-wait_file", "", "-post_file", "/builder/tools/0", "-entrypoint", "/mycmd", "--"),
+					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
 					tb.EnvVar("HOME", "/builder/home"),
 					tb.VolumeMount("tools", "/builder/tools"),
+					tb.VolumeMount("downward", "/builder/downward"),
 					tb.VolumeMount("workspace", workspaceDir),
 					tb.VolumeMount("home", "/builder/home"),
 					tb.Resources(tb.Requests(
@@ -848,11 +836,6 @@ func TestReconcile(t *testing.T) {
 						tb.Memory("0"),
 						tb.EphemeralStorage("0"),
 					)),
-				),
-				tb.PodContainer("nop", "override-with-nop:latest",
-					tb.Command("/builder/tools/entrypoint"),
-					tb.Args("-wait_file", "/builder/tools/0", "-post_file", "/builder/tools/1", "-entrypoint", "/ko-app/nop", "--"),
-					tb.VolumeMount(entrypoint.MountName, entrypoint.MountPoint),
 				),
 			),
 		),
@@ -860,23 +843,24 @@ func TestReconcile(t *testing.T) {
 		name:    "taskrun-with-annotations",
 		taskRun: taskRunWithAnnotations,
 		wantPod: tb.Pod("test-taskrun-with-annotations-pod-123456", "foo",
-			tb.PodAnnotation("sidecar.istio.io/inject", "false"),
+			tb.PodAnnotation("tekton.dev/ready", ""),
 			tb.PodAnnotation("TaskRunAnnotation", "TaskRunValue"),
 			tb.PodLabel(taskNameLabelKey, "test-task"),
 			tb.PodLabel(taskRunNameLabelKey, "test-taskrun-with-annotations"),
 			tb.PodOwnerReference("TaskRun", "test-taskrun-with-annotations",
 				tb.OwnerReferenceAPIVersion(currentApiVersion)),
 			tb.PodSpec(
-				tb.PodVolumes(toolsVolume, workspaceVolume, homeVolume),
+				tb.PodVolumes(toolsVolume, downward, workspaceVolume, homeVolume),
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj"),
 				getPlaceToolsInitContainer(),
 				tb.PodContainer("step-simple-step", "foo",
 					tb.Command(entrypointLocation),
-					tb.Args("-wait_file", "", "-post_file", "/builder/tools/0", "-entrypoint", "/mycmd", "--"),
+					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
 					tb.EnvVar("HOME", "/builder/home"),
 					tb.VolumeMount("tools", "/builder/tools"),
+					tb.VolumeMount("downward", "/builder/downward"),
 					tb.VolumeMount("workspace", workspaceDir),
 					tb.VolumeMount("home", "/builder/home"),
 					tb.Resources(tb.Requests(
@@ -884,11 +868,6 @@ func TestReconcile(t *testing.T) {
 						tb.Memory("0"),
 						tb.EphemeralStorage("0"),
 					)),
-				),
-				tb.PodContainer("nop", "override-with-nop:latest",
-					tb.Command("/builder/tools/entrypoint"),
-					tb.Args("-wait_file", "/builder/tools/0", "-post_file", "/builder/tools/1", "-entrypoint", "/ko-app/nop", "--"),
-					tb.VolumeMount(entrypoint.MountName, entrypoint.MountPoint),
 				),
 			),
 		),
@@ -896,19 +875,19 @@ func TestReconcile(t *testing.T) {
 		name:    "task-env",
 		taskRun: taskRunTaskEnv,
 		wantPod: tb.Pod("test-taskrun-task-env-pod-311bc9", "foo",
-			tb.PodAnnotation("sidecar.istio.io/inject", "false"),
+			tb.PodAnnotation("tekton.dev/ready", ""),
 			tb.PodLabel(taskNameLabelKey, "test-task-env"),
 			tb.PodLabel(taskRunNameLabelKey, "test-taskrun-task-env"),
 			tb.PodOwnerReference("TaskRun", "test-taskrun-task-env",
 				tb.OwnerReferenceAPIVersion("tekton.dev/v1alpha1")),
 			tb.PodSpec(
-				tb.PodVolumes(toolsVolume, workspaceVolume, homeVolume),
+				tb.PodVolumes(toolsVolume, downward, workspaceVolume, homeVolume),
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj", tb.EnvVar("FRUIT", "APPLE")),
 				getPlaceToolsInitContainer(tb.EnvVar("FRUIT", "APPLE")),
 				tb.PodContainer("step-env-step", "foo", tb.Command(entrypointLocation),
 					tb.Command(entrypointLocation),
-					tb.Args("-wait_file", "", "-post_file", "/builder/tools/0", "-entrypoint", "/mycmd", "--"),
+					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
 					tb.EnvVar("HOME", "/builder/home"),
 					tb.Resources(tb.Requests(
@@ -917,16 +896,11 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 					tb.VolumeMount("tools", "/builder/tools"),
+					tb.VolumeMount("downward", "/builder/downward"),
 					tb.VolumeMount("workspace", workspaceDir),
 					tb.VolumeMount("home", "/builder/home"),
 					tb.EnvVar("ANOTHER", "VARIABLE"),
 					tb.EnvVar("FRUIT", "LEMON"),
-				),
-				tb.PodContainer("nop", "override-with-nop:latest",
-					tb.Command("/builder/tools/entrypoint"),
-					tb.Args("-wait_file", "/builder/tools/0", "-post_file", "/builder/tools/1", "-entrypoint", "/ko-app/nop", "--"),
-					tb.VolumeMount(entrypoint.MountName, entrypoint.MountPoint),
-					tb.EnvVar("FRUIT", "APPLE"),
 				),
 			),
 		),
@@ -934,21 +908,22 @@ func TestReconcile(t *testing.T) {
 		name:    "taskrun-with-resource-requests",
 		taskRun: taskRunWithResourceRequests,
 		wantPod: tb.Pod("test-taskrun-with-resource-requests-pod-123456", "foo",
-			tb.PodAnnotation("sidecar.istio.io/inject", "false"),
+			tb.PodAnnotation("tekton.dev/ready", ""),
 			tb.PodLabel(taskRunNameLabelKey, "test-taskrun-with-resource-requests"),
 			tb.PodOwnerReference("TaskRun", "test-taskrun-with-resource-requests",
 				tb.OwnerReferenceAPIVersion(currentApiVersion)),
 			tb.PodSpec(
-				tb.PodVolumes(toolsVolume, workspaceVolume, homeVolume),
+				tb.PodVolumes(toolsVolume, downward, workspaceVolume, homeVolume),
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj"),
 				getPlaceToolsInitContainer(),
 				tb.PodContainer("step-step1", "foo",
 					tb.Command(entrypointLocation),
-					tb.Args("-wait_file", "", "-post_file", "/builder/tools/0", "-entrypoint", "/mycmd", "--"),
+					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
 					tb.EnvVar("HOME", "/builder/home"),
 					tb.VolumeMount("tools", "/builder/tools"),
+					tb.VolumeMount("downward", "/builder/downward"),
 					tb.VolumeMount("workspace", workspaceDir),
 					tb.VolumeMount("home", "/builder/home"),
 					tb.Resources(
@@ -994,33 +969,29 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("nop", "override-with-nop:latest",
-					tb.Command("/builder/tools/entrypoint"),
-					tb.Args("-wait_file", "/builder/tools/2", "-post_file", "/builder/tools/3", "-entrypoint", "/ko-app/nop", "--"),
-					tb.VolumeMount(entrypoint.MountName, entrypoint.MountPoint),
-				),
 			),
 		),
 	}, {
 		name:    "taskrun-with-pod",
 		taskRun: taskRunWithPod,
 		wantPod: tb.Pod("test-taskrun-with-pod-pod-123456", "foo",
-			tb.PodAnnotation("sidecar.istio.io/inject", "false"),
+			tb.PodAnnotation("tekton.dev/ready", ""),
 			tb.PodLabel(taskNameLabelKey, "test-task"),
 			tb.PodLabel(taskRunNameLabelKey, "test-taskrun-with-pod"),
 			tb.PodOwnerReference("TaskRun", "test-taskrun-with-pod",
 				tb.OwnerReferenceAPIVersion(currentApiVersion)),
 			tb.PodSpec(
-				tb.PodVolumes(toolsVolume, workspaceVolume, homeVolume),
+				tb.PodVolumes(toolsVolume, downward, workspaceVolume, homeVolume),
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj"),
 				getPlaceToolsInitContainer(),
 				tb.PodContainer("step-simple-step", "foo",
 					tb.Command(entrypointLocation),
-					tb.Args("-wait_file", "", "-post_file", "/builder/tools/0", "-entrypoint", "/mycmd", "--"),
+					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
 					tb.EnvVar("HOME", "/builder/home"),
 					tb.VolumeMount("tools", "/builder/tools"),
+					tb.VolumeMount("downward", "/builder/downward"),
 					tb.VolumeMount("workspace", workspaceDir),
 					tb.VolumeMount("home", "/builder/home"),
 					tb.Resources(tb.Requests(
@@ -1028,11 +999,6 @@ func TestReconcile(t *testing.T) {
 						tb.Memory("0"),
 						tb.EphemeralStorage("0"),
 					)),
-				),
-				tb.PodContainer("nop", "override-with-nop:latest",
-					tb.Command("/builder/tools/entrypoint"),
-					tb.Args("-wait_file", "/builder/tools/0", "-post_file", "/builder/tools/1", "-entrypoint", "/ko-app/nop", "--"),
-					tb.VolumeMount(entrypoint.MountName, entrypoint.MountPoint),
 				),
 			),
 		),
@@ -1239,9 +1205,7 @@ func TestReconcilePodFetchError(t *testing.T) {
 	}
 }
 
-func TestReconcilePodUpdateStatus(t *testing.T) {
-	taskRun := tb.TaskRun("test-taskrun-run-success", "foo", tb.TaskRunSpec(tb.TaskRunTaskRef("test-task")))
-
+func makePod(taskRun *v1alpha1.TaskRun, task *v1alpha1.Task) (*corev1.Pod, error) {
 	logger, _ := logging.NewLogger("", "")
 	cache, _ := entrypoint.NewCache()
 	// TODO(jasonhall): This avoids a circular dependency where
@@ -1251,12 +1215,18 @@ func TestReconcilePodUpdateStatus(t *testing.T) {
 	// specify the Pod we want to exist directly, and not call MakePod from
 	// the build. This will break the cycle and allow us to simply use
 	// clients normally.
-	pod, err := resources.MakePod(taskRun, simpleTask.Spec, fakekubeclientset.NewSimpleClientset(&corev1.ServiceAccount{
+	return resources.MakePod(taskRun, task.Spec, fakekubeclientset.NewSimpleClientset(&corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default",
 			Namespace: taskRun.Namespace,
 		},
 	}), cache, logger)
+}
+
+func TestReconcilePodUpdateStatus(t *testing.T) {
+	taskRun := tb.TaskRun("test-taskrun-run-success", "foo", tb.TaskRunSpec(tb.TaskRunTaskRef("test-task")))
+
+	pod, err := makePod(taskRun, simpleTask)
 	if err != nil {
 		t.Fatalf("MakePod: %v", err)
 	}
@@ -1323,7 +1293,7 @@ func TestCreateRedirectedTaskSpec(t *testing.T) {
 	))
 
 	expectedSteps := len(task.Spec.Steps) + 1
-	expectedVolumes := len(task.Spec.Volumes) + 1
+	expectedVolumes := len(task.Spec.Volumes) + 2
 
 	observer, _ := observer.New(zap.InfoLevel)
 	entrypointCache, _ := entrypoint.NewCache()
@@ -1490,7 +1460,7 @@ func TestUpdateStatusFromPod(t *testing.T) {
 	conditionBuilding := apis.Condition{
 		Type:   apis.ConditionSucceeded,
 		Status: corev1.ConditionUnknown,
-		Reason: reasonRunning,
+		Reason: reasonBuilding,
 	}
 	for _, c := range []struct {
 		desc      string
@@ -1513,7 +1483,7 @@ func TestUpdateStatusFromPod(t *testing.T) {
 				// creds-init; ignored
 			}},
 			ContainerStatuses: []corev1.ContainerStatus{{
-				Name: "state-name",
+				Name: "step-state-name",
 				State: corev1.ContainerState{
 					Terminated: &corev1.ContainerStateTerminated{
 						ExitCode: 123,
@@ -1542,7 +1512,7 @@ func TestUpdateStatusFromPod(t *testing.T) {
 				// git-init; ignored.
 			}},
 			ContainerStatuses: []corev1.ContainerStatus{{
-				Name: "state-name",
+				Name: "step-state-name",
 				State: corev1.ContainerState{
 					Terminated: &corev1.ContainerStateTerminated{
 						ExitCode: 123,
@@ -1687,7 +1657,7 @@ func TestUpdateStatusFromPod(t *testing.T) {
 				// creds-init status; ignored
 			}},
 			ContainerStatuses: []corev1.ContainerStatus{{
-				Name: "status-name",
+				Name: "step-status-name",
 				State: corev1.ContainerState{
 					Waiting: &corev1.ContainerStateWaiting{
 						Message: "i'm pending",
@@ -1701,7 +1671,7 @@ func TestUpdateStatusFromPod(t *testing.T) {
 					Type:    apis.ConditionSucceeded,
 					Status:  corev1.ConditionUnknown,
 					Reason:  "Pending",
-					Message: `build step "status-name" is pending with reason "i'm pending"`,
+					Message: `build step "step-status-name" is pending with reason "i'm pending"`,
 				}},
 			},
 			Steps: []v1alpha1.StepState{{
@@ -1785,6 +1755,37 @@ func TestUpdateStatusFromPod(t *testing.T) {
 			},
 			Steps: []v1alpha1.StepState{},
 		},
+	}, {
+		desc: "with-running-sidecar",
+		podStatus: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name: "step-running-step",
+					State: corev1.ContainerState{
+						Running: &corev1.ContainerStateRunning{},
+					},
+				},
+				{
+					Name: "running-sidecar",
+					State: corev1.ContainerState{
+						Running: &corev1.ContainerStateRunning{},
+					},
+					Ready: true,
+				},
+			},
+		},
+		want: v1alpha1.TaskRunStatus{
+			Status: duckv1beta1.Status{
+				Conditions: []apis.Condition{conditionBuilding},
+			},
+			Steps: []v1alpha1.StepState{{
+				ContainerState: corev1.ContainerState{
+					Running: &corev1.ContainerStateRunning{},
+				},
+				Name: "running-step",
+			}},
+		},
 	}} {
 		t.Run(c.desc, func(t *testing.T) {
 			observer, _ := observer.New(zap.InfoLevel)
@@ -1836,6 +1837,7 @@ func TestUpdateStatusFromPod(t *testing.T) {
 				return y != nil
 			})
 			if d := cmp.Diff(tr.Status, c.want, ignoreVolatileTime, ensureTimeNotNil); d != "" {
+				t.Errorf("Wanted:%s %v", c.desc, c.want.Conditions[0])
 				t.Errorf("Diff:\n%s", d)
 			}
 			if tr.Status.StartTime.Time != c.want.StartTime.Time {
@@ -1906,4 +1908,99 @@ func TestHandlePodCreationError(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestKillSidecars exercises the killSidecars() method of the TaskRun reconciler.
+// A sidecar is killed by having its container image changed to that of the nop image.
+// This test therefore runs through a series of pod and sidecar configurations,
+// checking whether the resulting image in the sidecar's container matches that expected.
+func TestKillSidecars(t *testing.T) {
+	testcases := []struct {
+		description      string
+		podPhase         corev1.PodPhase
+		sidecarContainer corev1.Container
+		sidecarState     corev1.ContainerState
+		expectedImage    string
+	}{{
+		description: "a running sidecar container should be stopped",
+		podPhase:    corev1.PodRunning,
+		sidecarContainer: corev1.Container{
+			Name:    "echo-hello",
+			Image:   "echo-hello:latest",
+			Command: []string{"echo"},
+			Args:    []string{"hello"},
+		},
+		sidecarState: corev1.ContainerState{
+			Running: &corev1.ContainerStateRunning{StartedAt: metav1.NewTime(time.Now())},
+		},
+		expectedImage: *nopImage,
+	}, {
+		description: "a pending pod should not have its sidecars stopped",
+		podPhase:    corev1.PodPending,
+		sidecarContainer: corev1.Container{
+			Name:    "echo-hello",
+			Image:   "echo-hello:latest",
+			Command: []string{"echo"},
+			Args:    []string{"hello"},
+		},
+		sidecarState: corev1.ContainerState{
+			Running: &corev1.ContainerStateRunning{StartedAt: metav1.NewTime(time.Now())},
+		},
+		expectedImage: "echo-hello:latest",
+	}, {
+		description: "a sidecar container that is not in a running state should not be stopped",
+		podPhase:    corev1.PodRunning,
+		sidecarContainer: corev1.Container{
+			Name:    "echo-hello",
+			Image:   "echo-hello:latest",
+			Command: []string{"echo"},
+			Args:    []string{"hello"},
+		},
+		sidecarState: corev1.ContainerState{
+			Waiting: &corev1.ContainerStateWaiting{},
+		},
+		expectedImage: "echo-hello:latest",
+	}}
+	for i, tc := range testcases {
+		t.Run(tc.description, func(t *testing.T) {
+			taskrunName := fmt.Sprintf("test-taskrun-kill-sidecars-%d", i)
+			taskRun := tb.TaskRun(taskrunName, "foo", tb.TaskRunSpec(tb.TaskRunTaskRef("test-task")))
+			pod, err := makePod(taskRun, simpleTask)
+			if err != nil {
+				t.Errorf("MakePod: %v", err)
+			}
+			pod.Status.Phase = tc.podPhase
+			pod.Spec.Containers = append(pod.Spec.Containers, tc.sidecarContainer)
+			numContainers := len(pod.Spec.Containers)
+			sidecarIdx := numContainers - 1
+			pod.Status.ContainerStatuses = make([]corev1.ContainerStatus, numContainers)
+			pod.Status.ContainerStatuses[sidecarIdx] = corev1.ContainerStatus{
+				Name:  tc.sidecarContainer.Name + "-status",
+				State: tc.sidecarState,
+			}
+			taskRun.Status = v1alpha1.TaskRunStatus{
+				PodName: pod.Name,
+			}
+			d := test.Data{
+				TaskRuns: []*v1alpha1.TaskRun{taskRun},
+				Tasks:    []*v1alpha1.Task{simpleTask},
+				Pods:     []*corev1.Pod{pod},
+			}
+			testAssets := getTaskRunController(t, d)
+			clients := testAssets.Clients
+			if c, ok := testAssets.Controller.Reconciler.(*Reconciler); !ok {
+				t.Errorf("failed to construct instance of taskrun reconciler")
+			} else if err = c.killSidecars(taskRun); err != nil {
+				t.Errorf("error killing sidecars: %v", err)
+			}
+			pod, err = clients.Kube.CoreV1().Pods(taskRun.Namespace).Get(pod.Name, metav1.GetOptions{})
+			if err != nil {
+				t.Errorf("cant find pod: %v", err)
+			}
+			if pod.Spec.Containers[sidecarIdx].Image != tc.expectedImage {
+				t.Errorf("expected sidecar image %q, actual: %q", tc.expectedImage, pod.Spec.Containers[sidecarIdx].Image)
+			}
+		})
+	}
+
 }

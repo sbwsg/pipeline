@@ -18,6 +18,7 @@ package taskrun
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"reflect"
 	"strings"
@@ -61,6 +62,10 @@ const (
 	// is just starting to be reconciled
 	reasonRunning = "Running"
 
+	// reasonBuilding indicates that the reasono for the in progress status is that the TaskRun
+	// is just being built
+	reasonBuilding = "Building"
+
 	// reasonTimedOut indicates that the TaskRun has taken longer than its configured timeout
 	reasonTimedOut = "TaskRunTimeout"
 
@@ -80,6 +85,10 @@ const (
 	// imageDigestExporterContainerName defines the name of the container that will collect the
 	// built images digest
 	imageDigestExporterContainerName = "step-image-digest-exporter"
+)
+
+var (
+	nopImage = flag.String("nop-image", "override-with-nop:latest", "The container image used to kill sidecars")
 )
 
 // Reconciler implements controller.Reconciler for Configuration resources.
@@ -179,6 +188,10 @@ func (c *Reconciler) Reconcile(ctx context.Context, key string) error {
 
 	if tr.IsDone() {
 		c.timeoutHandler.Release(tr)
+		if err := c.killSidecars(tr); err != nil {
+			c.Logger.Errorf("Error killing sidecars for TaskRun %q: %v", name, err.Error())
+			return err
+		}
 		return nil
 	}
 
@@ -329,9 +342,15 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1alpha1.TaskRun) error 
 
 	before := tr.Status.GetCondition(apis.ConditionSucceeded)
 
-	updateStatusFromPod(tr, pod, c.resourceLister, c.KubeClientSet, c.Logger)
+	addReady := updateStatusFromPod(tr, pod, c.resourceLister, c.KubeClientSet, c.Logger)
 
 	after := tr.Status.GetCondition(apis.ConditionSucceeded)
+
+	if addReady {
+		if err := c.updateReady(pod); err != nil {
+			return err
+		}
+	}
 
 	reconciler.EmitEvent(c.Recorder, before, after, tr)
 
@@ -340,7 +359,9 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1alpha1.TaskRun) error 
 	return nil
 }
 
-func updateStatusFromPod(taskRun *v1alpha1.TaskRun, pod *corev1.Pod, resourceLister listers.PipelineResourceLister, kubeclient kubernetes.Interface, logger *zap.SugaredLogger) {
+// updateStatusFromPod modifies the task run status based on the pod and then returns true if the pod is running and
+// all sidecars are ready
+func updateStatusFromPod(taskRun *v1alpha1.TaskRun, pod *corev1.Pod, resourceLister listers.PipelineResourceLister, kubeclient kubernetes.Interface, logger *zap.SugaredLogger) bool {
 	if taskRun.Status.GetCondition(apis.ConditionSucceeded) == nil || taskRun.Status.GetCondition(apis.ConditionSucceeded).Status == corev1.ConditionUnknown {
 		// If the taskRunStatus doesn't exist yet, it's because we just started running
 		taskRun.Status.SetCondition(&apis.Condition{
@@ -354,54 +375,93 @@ func updateStatusFromPod(taskRun *v1alpha1.TaskRun, pod *corev1.Pod, resourceLis
 	taskRun.Status.PodName = pod.Name
 
 	taskRun.Status.Steps = []v1alpha1.StepState{}
+	// Might be complete if we're only running because of a sidecar
+	maybeComplete := len(pod.Status.ContainerStatuses) > 0 && pod.Status.Phase == corev1.PodRunning
+	// Might be false if a sidecar is still running, so we check each step container below.
+	failed := pod.Status.Phase == corev1.PodFailed
+	readySidecarsCount := 0
 	for _, s := range pod.Status.ContainerStatuses {
-		taskRun.Status.Steps = append(taskRun.Status.Steps, v1alpha1.StepState{
-			ContainerState: *s.State.DeepCopy(),
-			Name:           resources.TrimContainerNamePrefix(s.Name),
-		})
+		if resources.IsContainerStep(s.Name) {
+			taskRun.Status.Steps = append(taskRun.Status.Steps, v1alpha1.StepState{
+				ContainerState: *s.State.DeepCopy(),
+				Name:           resources.TrimContainerNamePrefix(s.Name),
+			})
+			if s.State.Terminated == nil {
+				// Pod is still running, we're definitely not complete
+				maybeComplete = false
+			} else {
+				failed = failed || s.State.Terminated.ExitCode != 0
+			}
+		} else if s.State.Running != nil && s.Ready {
+			readySidecarsCount++
+		}
 	}
 
-	switch pod.Status.Phase {
-	case corev1.PodRunning:
-		taskRun.Status.SetCondition(&apis.Condition{
-			Type:   apis.ConditionSucceeded,
-			Status: corev1.ConditionUnknown,
-			Reason: reasonRunning,
-		})
-	case corev1.PodFailed:
-		msg := getFailureMessage(pod)
-		taskRun.Status.SetCondition(&apis.Condition{
-			Type:    apis.ConditionSucceeded,
-			Status:  corev1.ConditionFalse,
-			Message: msg,
-		})
-		// update tr completed time
-		taskRun.Status.CompletionTime = &metav1.Time{Time: time.Now()}
-	case corev1.PodPending:
-		var reason, msg string
-		if isPodExceedingNodeResources(pod) {
-			reason = reasonExceededNodeResources
-			msg = getExceededResourcesMessage(taskRun)
+	// Complete if we did not find a step that is not complete, or the pod is in a definitely complete phase
+	complete := maybeComplete || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed
+
+	if complete {
+		if failed {
+			msg := getFailureMessage(pod)
+			taskRun.Status.SetCondition(&apis.Condition{
+				Type:    apis.ConditionSucceeded,
+				Status:  corev1.ConditionFalse,
+				Message: msg,
+			})
 		} else {
-			reason = "Pending"
-			msg = getWaitingMessage(pod)
+			taskRun.Status.SetCondition(&apis.Condition{
+				Type:   apis.ConditionSucceeded,
+				Status: corev1.ConditionTrue,
+			})
 		}
-		taskRun.Status.SetCondition(&apis.Condition{
-			Type:    apis.ConditionSucceeded,
-			Status:  corev1.ConditionUnknown,
-			Reason:  reason,
-			Message: msg,
-		})
-	case corev1.PodSucceeded:
-		taskRun.Status.SetCondition(&apis.Condition{
-			Type:   apis.ConditionSucceeded,
-			Status: corev1.ConditionTrue,
-		})
 		// update tr completed time
 		taskRun.Status.CompletionTime = &metav1.Time{Time: time.Now()}
+	} else {
+		switch pod.Status.Phase {
+		case corev1.PodRunning:
+			taskRun.Status.SetCondition(&apis.Condition{
+				Type:   apis.ConditionSucceeded,
+				Status: corev1.ConditionUnknown,
+				Reason: reasonBuilding,
+			})
+		case corev1.PodFailed:
+			msg := getFailureMessage(pod)
+			taskRun.Status.SetCondition(&apis.Condition{
+				Type:    apis.ConditionSucceeded,
+				Status:  corev1.ConditionFalse,
+				Message: msg,
+			})
+			// update tr completed time
+			taskRun.Status.CompletionTime = &metav1.Time{Time: time.Now()}
+		case corev1.PodPending:
+			var reason, msg string
+			if isPodExceedingNodeResources(pod) {
+				reason = reasonExceededNodeResources
+				msg = getExceededResourcesMessage(taskRun)
+			} else {
+				reason = "Pending"
+				msg = getWaitingMessage(pod)
+			}
+			taskRun.Status.SetCondition(&apis.Condition{
+				Type:    apis.ConditionSucceeded,
+				Status:  corev1.ConditionUnknown,
+				Reason:  reason,
+				Message: msg,
+			})
+		case corev1.PodSucceeded:
+			taskRun.Status.SetCondition(&apis.Condition{
+				Type:   apis.ConditionSucceeded,
+				Status: corev1.ConditionTrue,
+			})
+			// update tr completed time
+			taskRun.Status.CompletionTime = &metav1.Time{Time: time.Now()}
+		}
 	}
 
 	updateTaskRunResourceResult(taskRun, pod, resourceLister, kubeclient, logger)
+
+	sidecarsCount := len(pod.Status.ContainerStatuses) - len(taskRun.Status.Steps)
+	return pod.Status.Phase == corev1.PodRunning && readySidecarsCount == sidecarsCount
 }
 
 func (c *Reconciler) handlePodCreationError(tr *v1alpha1.TaskRun, err error) {
@@ -522,6 +582,23 @@ func (c *Reconciler) updateLabelsAndAnnotations(tr *v1alpha1.TaskRun) (*v1alpha1
 	return newTr, nil
 }
 
+// updateReady updates a Pod to include the "ready" annotation, which will be projected by
+// the Downward API into a volume mounted by the entrypoint container. This will signal to
+// the entrypoint that the TaskRun can proceed.
+func (c *Reconciler) updateReady(pod *corev1.Pod) error {
+	newPod, err := c.KubeClientSet.CoreV1().Pods(pod.Namespace).Get(pod.Name, metav1.GetOptions{})
+	if err != nil {
+		return xerrors.Errorf("Error getting Pod %q when updating ready annotation: %w", pod.Name, err)
+	}
+	updatePod := c.KubeClientSet.CoreV1().Pods(newPod.Namespace).Update
+	if err := resources.AddReadyAnnotation(newPod, updatePod); err != nil {
+		c.Logger.Errorf("Failed to update ready annotation for pod %q for taskrun %q: %v", pod.Name, pod.Name, err)
+		return xerrors.Errorf("Error adding ready annotation to Pod %q: %w", pod.Name, err)
+	}
+
+	return nil
+}
+
 // createPod creates a Pod based on the Task's configuration, with pvcName as a volumeMount
 // TODO(dibyom): Refactor resource setup/templating logic to its own function in the resources package
 func (c *Reconciler) createPod(tr *v1alpha1.TaskRun, rtr *resources.ResolvedTaskResources) (*corev1.Pod, error) {
@@ -606,6 +683,23 @@ func createRedirectedTaskSpec(kubeclient kubernetes.Interface, ts *v1alpha1.Task
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
 	})
+
+	ts.Volumes = append(ts.Volumes, corev1.Volume{
+		Name: entrypoint.DownwardMountName,
+		VolumeSource: corev1.VolumeSource{
+			DownwardAPI: &corev1.DownwardAPIVolumeSource{
+				Items: []corev1.DownwardAPIVolumeFile{
+					corev1.DownwardAPIVolumeFile{
+						Path: entrypoint.DownwardMountReadyFile,
+						FieldRef: &corev1.ObjectFieldSelector{
+							FieldPath: fmt.Sprintf("metadata.annotations['%s']", resources.ReadyAnnotation),
+						},
+					},
+				},
+			},
+		},
+	})
+
 	return ts, nil
 }
 
@@ -662,6 +756,45 @@ func isExceededResourceQuotaError(err error) bool {
 
 func getExceededResourcesMessage(tr *v1alpha1.TaskRun) string {
 	return fmt.Sprintf("TaskRun pod %q exceeded available resources", tr.Name)
+}
+
+// killSidecars stops all sidecar containers running inside a taskrun's pod.
+// A container is determined to be a sidecar if it is currently running - this
+// func is only expected to be called after a TaskRun completes and so all Task
+// containers should have stopped already.
+//
+// A sidecar is killed by replacing its current container image with the nop
+// image, which in turn quickly exits. If the sidedcar defines a command then
+// it will exit with a non-zero status. When we check for TaskRun success we
+// have to check for the containers we care about - not the final Pod status.
+func (c *Reconciler) killSidecars(tr *v1alpha1.TaskRun) error {
+	pod, err := c.KubeClientSet.CoreV1().Pods(tr.Namespace).Get(tr.Status.PodName, metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	updated := false
+	if pod.Status.Phase == corev1.PodRunning {
+		for i, s := range pod.Status.ContainerStatuses {
+			if s.State.Running != nil && pod.Spec.Containers[i].Image != *nopImage {
+				updated = true
+				pod.Spec.Containers[i].Image = *nopImage
+				break
+			}
+		}
+	}
+
+	if updated {
+		if _, err := c.KubeClientSet.CoreV1().Pods(tr.Namespace).Update(pod); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // resourceImplBinding maps pipeline resource names to the actual resource type implementations
