@@ -40,16 +40,6 @@ var (
 	resourceQuantityCmp = cmp.Comparer(func(x, y resource.Quantity) bool {
 		return x.Cmp(y) == 0
 	})
-	nopContainer = corev1.Container{
-		Name:    "nop",
-		Image:   *nopImage,
-		Command: []string{"/builder/tools/entrypoint"},
-		Args:    []string{"-wait_file", "/builder/tools/0", "-post_file", "/builder/tools/1", "-entrypoint", "/ko-app/nop", "--"},
-		VolumeMounts: []corev1.VolumeMount{{
-			Name:      entrypoint.MountName,
-			MountPath: entrypoint.MountPoint,
-		}},
-	}
 )
 
 func TestTryGetPod(t *testing.T) {
@@ -158,21 +148,21 @@ func TestMakePod(t *testing.T) {
 				VolumeMounts: implicitVolumeMounts,
 				WorkingDir:   workspaceDir,
 			}},
-			Containers: []corev1.Container{{
-				Name:         "build-step-name",
-				Image:        "image",
-				Env:          implicitEnvVars,
-				VolumeMounts: implicitVolumeMounts,
-				WorkingDir:   workspaceDir,
-				Resources: corev1.ResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceCPU:              resource.MustParse("0"),
-						corev1.ResourceMemory:           resource.MustParse("0"),
-						corev1.ResourceEphemeralStorage: resource.MustParse("0"),
+			Containers: []corev1.Container{
+				{
+					Name:         "build-step-name",
+					Image:        "image",
+					Env:          implicitEnvVars,
+					VolumeMounts: implicitVolumeMounts,
+					WorkingDir:   workspaceDir,
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:              resource.MustParse("0"),
+							corev1.ResourceMemory:           resource.MustParse("0"),
+							corev1.ResourceEphemeralStorage: resource.MustParse("0"),
+						},
 					},
 				},
-			},
-				nopContainer,
 			},
 			Volumes: implicitVolumes,
 		},
@@ -204,21 +194,21 @@ func TestMakePod(t *testing.T) {
 				VolumeMounts: implicitVolumeMountsWithSecrets,
 				WorkingDir:   workspaceDir,
 			}},
-			Containers: []corev1.Container{{
-				Name:         "build-step-name",
-				Image:        "image",
-				Env:          implicitEnvVars,
-				VolumeMounts: implicitVolumeMounts,
-				WorkingDir:   workspaceDir,
-				Resources: corev1.ResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceCPU:              resource.MustParse("0"),
-						corev1.ResourceMemory:           resource.MustParse("0"),
-						corev1.ResourceEphemeralStorage: resource.MustParse("0"),
+			Containers: []corev1.Container{
+				{
+					Name:         "build-step-name",
+					Image:        "image",
+					Env:          implicitEnvVars,
+					VolumeMounts: implicitVolumeMounts,
+					WorkingDir:   workspaceDir,
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:              resource.MustParse("0"),
+							corev1.ResourceMemory:           resource.MustParse("0"),
+							corev1.ResourceEphemeralStorage: resource.MustParse("0"),
+						},
 					},
 				},
-			},
-				nopContainer,
 			},
 			Volumes: implicitVolumesWithSecrets,
 		},
@@ -244,21 +234,21 @@ func TestMakePod(t *testing.T) {
 				VolumeMounts: implicitVolumeMounts,
 				WorkingDir:   workspaceDir,
 			}},
-			Containers: []corev1.Container{{
-				Name:         "build-step-a-very-long-character-step-name-to-trigger-max-len",
-				Image:        "image",
-				Env:          implicitEnvVars,
-				VolumeMounts: implicitVolumeMounts,
-				WorkingDir:   workspaceDir,
-				Resources: corev1.ResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceCPU:              resource.MustParse("0"),
-						corev1.ResourceMemory:           resource.MustParse("0"),
-						corev1.ResourceEphemeralStorage: resource.MustParse("0"),
+			Containers: []corev1.Container{
+				{
+					Name:         "build-step-a-very-long-character-step-name-to-trigger-max-len",
+					Image:        "image",
+					Env:          implicitEnvVars,
+					VolumeMounts: implicitVolumeMounts,
+					WorkingDir:   workspaceDir,
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:              resource.MustParse("0"),
+							corev1.ResourceMemory:           resource.MustParse("0"),
+							corev1.ResourceEphemeralStorage: resource.MustParse("0"),
+						},
 					},
 				},
-			},
-				nopContainer,
 			},
 			Volumes: implicitVolumes,
 		},
@@ -284,21 +274,21 @@ func TestMakePod(t *testing.T) {
 				VolumeMounts: implicitVolumeMounts,
 				WorkingDir:   workspaceDir,
 			}},
-			Containers: []corev1.Container{{
-				Name:         "build-step-ends-with-invalid",
-				Image:        "image",
-				Env:          implicitEnvVars,
-				VolumeMounts: implicitVolumeMounts,
-				WorkingDir:   workspaceDir,
-				Resources: corev1.ResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceCPU:              resource.MustParse("0"),
-						corev1.ResourceMemory:           resource.MustParse("0"),
-						corev1.ResourceEphemeralStorage: resource.MustParse("0"),
+			Containers: []corev1.Container{
+				{
+					Name:         "build-step-ends-with-invalid",
+					Image:        "image",
+					Env:          implicitEnvVars,
+					VolumeMounts: implicitVolumeMounts,
+					WorkingDir:   workspaceDir,
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:              resource.MustParse("0"),
+							corev1.ResourceMemory:           resource.MustParse("0"),
+							corev1.ResourceEphemeralStorage: resource.MustParse("0"),
+						},
 					},
 				},
-			},
-				nopContainer,
 			},
 			Volumes: implicitVolumes,
 		},
@@ -330,21 +320,21 @@ func TestMakePod(t *testing.T) {
 				VolumeMounts: implicitVolumeMounts,
 				WorkingDir:   workspaceDir,
 			}},
-			Containers: []corev1.Container{{
-				Name:         "build-step-name",
-				Image:        "image",
-				Env:          implicitEnvVars,
-				VolumeMounts: implicitVolumeMounts,
-				WorkingDir:   filepath.Join(workspaceDir, "test"),
-				Resources: corev1.ResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceCPU:              resource.MustParse("0"),
-						corev1.ResourceMemory:           resource.MustParse("0"),
-						corev1.ResourceEphemeralStorage: resource.MustParse("0"),
+			Containers: []corev1.Container{
+				{
+					Name:         "build-step-name",
+					Image:        "image",
+					Env:          implicitEnvVars,
+					VolumeMounts: implicitVolumeMounts,
+					WorkingDir:   filepath.Join(workspaceDir, "test"),
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:              resource.MustParse("0"),
+							corev1.ResourceMemory:           resource.MustParse("0"),
+							corev1.ResourceEphemeralStorage: resource.MustParse("0"),
+						},
 					},
 				},
-			},
-				nopContainer,
 			},
 			Volumes: implicitVolumes,
 		},
@@ -396,7 +386,7 @@ func TestMakePod(t *testing.T) {
 				t.Errorf("Diff spec:\n%s", d)
 			}
 
-			wantAnnotations := map[string]string{"sidecar.istio.io/inject": "false"}
+			wantAnnotations := map[string]string{ReadyAnnotation: ""}
 			if c.bAnnotations != nil {
 				for key, val := range c.bAnnotations {
 					wantAnnotations[key] = val
