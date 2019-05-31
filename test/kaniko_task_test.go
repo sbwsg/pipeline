@@ -154,22 +154,18 @@ func TestKanikoTaskRun(t *testing.T) {
 
 func getContainerLogs(c kubernetes.Interface, pod, namespace string, containers ...string) (string, error) {
 	sb := strings.Builder{}
-	fmt.Printf("\n\n\n\n\n")
 	for _, container := range containers {
-		fmt.Printf("Fetching logs for container %q\n", container)
 		req := c.CoreV1().Pods(namespace).GetLogs(pod, &corev1.PodLogOptions{Follow: true, Container: container})
 		rc, err := req.Stream()
 		if err != nil {
 			return "", err
 		}
 		bs, err := ioutil.ReadAll(rc)
-		fmt.Printf("%s\n\n\n", string(bs))
 		if err != nil {
 			return "", err
 		}
 		sb.Write(bs)
 	}
-	fmt.Printf("\n\n\n\n\n")
 	return sb.String(), nil
 }
 
