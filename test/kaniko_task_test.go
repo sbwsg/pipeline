@@ -134,10 +134,6 @@ func TestKanikoTaskRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected to get logs from pod %s: %v", podName, err)
 	}
-	// check the logs contain our success criteria
-	if !strings.Contains(logs, kanikoBuildOutput) {
-		t.Fatalf("Expected output %s from pod %s but got %s", kanikoBuildOutput, podName, logs)
-	}
 	// make sure the pushed digest matches the one we pushed
 	re := regexp.MustCompile(`digest: (sha256:\w+)`)
 	match := re.FindStringSubmatch(logs)
