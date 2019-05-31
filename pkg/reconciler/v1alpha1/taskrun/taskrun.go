@@ -581,7 +581,7 @@ func (c *Reconciler) updateLabelsAndAnnotations(tr *v1alpha1.TaskRun) (*v1alpha1
 func (c *Reconciler) updateReady(pod *corev1.Pod) error {
 	newPod, err := c.KubeClientSet.CoreV1().Pods(pod.Namespace).Get(pod.Name, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("Error getting Pod %s when updating ready annotation: %s", pod.Name, err)
+		return xerrors.Errorf("Error getting Pod %s when updating ready annotation: %w", pod.Name, err)
 	}
 	updatePod := c.KubeClientSet.CoreV1().Pods(newPod.Namespace).Update
 	if err := resources.AddReadyAnnotation(newPod, updatePod); err != nil {
