@@ -373,7 +373,7 @@ func makeAnnotations(s *v1alpha1.TaskRun) map[string]string {
 	for k, v := range s.ObjectMeta.Annotations {
 		annotations[k] = v
 	}
-	annotations["sidecar.istio.io/inject"] = "false"
+	annotations[ReadyAnnotation] = ""
 	return annotations
 }
 
