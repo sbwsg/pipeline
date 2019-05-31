@@ -341,7 +341,7 @@ func MakePod(taskRun *v1alpha1.TaskRun, taskSpec v1alpha1.TaskSpec, kubeclient k
 type UpdatePod func(*corev1.Pod) (*corev1.Pod, error)
 
 // AddReadyAnnotation adds the ready annotation if it is not present.
-// Returns true if the pod needs updating
+// Returns any error that comes back from the passed-in update func.
 func AddReadyAnnotation(p *corev1.Pod, update UpdatePod) error {
 	if p.ObjectMeta.Annotations[ReadyAnnotation] != readyAnnotationValue {
 		p.ObjectMeta.Annotations[ReadyAnnotation] = readyAnnotationValue
