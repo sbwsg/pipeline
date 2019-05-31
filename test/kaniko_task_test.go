@@ -41,7 +41,6 @@ const (
 	kanikoTaskName     = "kanikotask"
 	kanikoTaskRunName  = "kanikotask-run"
 	kanikoResourceName = "go-example-git"
-	kanikoBuildOutput  = "Task completed successfully"
 )
 
 func getGitResource(namespace string) *v1alpha1.PipelineResource {
