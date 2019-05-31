@@ -19,6 +19,7 @@ A `TaskRun` runs until all `steps` have completed or until a failure occurs.
   - [Service Account](#service-account)
 - [Cancelling a TaskRun](#cancelling-a-taskrun)
 - [Examples](#examples)
+- [Sidecars](#sidecars)
 - [Logs](logs.md)
 
 ---
@@ -535,6 +536,27 @@ of the `Task` resource object.
 
 For examples and more information about specifying service accounts, see the
 [`ServiceAccount`](./auth.md) reference topic.
+
+## Sidecars
+
+A well-established pattern in Kubernetes is that of the "sidecar" - a
+container that runs alongside your workloads to provide ancillary support.
+Typical examples of the sidecar pattern are logging daemons, services to
+update files on a shared volume, and network proxies.
+
+Tekton does not currently provide a mechanism to specify sidecars for the
+steps defined in a task but this is not the only way that sidecars can be
+added to your pods: [Admission Controllers](https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/)
+provide cluster admins a mechanism to inject a pod with sidecar containers
+as it is launched. As a concrete example this is one possible method [used
+by Istio](https://istio.io/docs/setup/kubernetes/additional-setup/sidecar-injection/#automatic-sidecar-injection)
+to inject an envoy proxy in to pods so that they can be included as part of
+Istio's service mesh.
+
+Tekton will happily work with sidecars being injected into a TaskRun's
+pods but the precise behaviour is somewhat nuanced. The sidecar will be
+forcibly stopped when the Task's Steps (each a container) have completely
+executed.
 
 ---
 
