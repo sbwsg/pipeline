@@ -42,6 +42,40 @@ import (
 
 var initMetrics sync.Once
 
+func setupIstio(t *testing.T) (*clients, string) {
+	t.Helper()
+	namespace := names.SimpleNameGenerator.RestrictLengthWithRandomSuffix("arendelle")
+
+	initializeLogsAndMetrics(t)
+
+	c := newClients(t, knativetest.Flags.Kubeconfig, knativetest.Flags.Cluster, namespace)
+	kubeClient := c.KubeClient
+
+	list, _ := kubeClient.Kube.CoreV1().Namespaces().List(metav1.ListOptions{})
+	if list != nil{
+		for _, ns := range list.Items{
+			t.Logf("NS %s", ns.Name)
+		}
+	}
+	if _, err := kubeClient.Kube.CoreV1().Namespaces().Get("istio-system", metav1.GetOptions{}); err != nil{
+		t.Fatalf("No Istio namespace available, error: %s", err)
+	}
+
+	t.Logf("Create namespace %s to deploy to", namespace)
+	if _, err := kubeClient.Kube.CoreV1().Namespaces().Create(&corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: namespace,
+			Labels: map[string]string{
+				"istio-injection": "enabled",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Failed to create namespace %s for tests: %s", namespace, err)
+	}
+	verifyServiceAccountExistence(t, namespace, c.KubeClient)
+	return c, namespace
+}
+
 func setup(t *testing.T) (*clients, string) {
 	t.Helper()
 	namespace := names.SimpleNameGenerator.RestrictLengthWithRandomSuffix("arendelle")

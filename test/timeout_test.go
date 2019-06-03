@@ -178,6 +178,79 @@ func TestPipelineRunTimeout(t *testing.T) {
 		t.Fatalf("Error waiting for PipelineRun %s to finish: %s", secondPipelineRun.Name, err)
 	}
 }
+func TestPipelineRunOkWithIstio(t *testing.T) {
+
+	for _, test := range []struct {
+		name string
+		namespaceFunc func(t *testing.T) (c *clients, namespace string)
+		containers int
+		initContainers int
+	}{
+		{
+			name: "Istio",
+			namespaceFunc: setupIstio,
+			containers: 2,
+			initContainers: 3,
+		},
+		{
+			name: "No Istio",
+			namespaceFunc: setup,
+			containers: 1,
+			initContainers: 2,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+
+
+			c, namespace := test.namespaceFunc(t)
+			//t.Parallel()
+
+			knativetest.CleanupOnInterrupt(func() { tearDown(t, c, namespace) }, t.Logf)
+			defer tearDown(t, c, namespace)
+
+			t.Logf("Creating Task in namespace %s", namespace)
+			task := tb.Task("platano", namespace, tb.TaskSpec(
+				tb.Step("foo", "busybox", tb.Command("/bin/sh"), tb.Args("-c", "echo sidecar")),
+			))
+			if _, err := c.TaskClient.Create(task); err != nil {
+				t.Fatalf("Failed to create Task `%s`: %s", "banana", err)
+			}
+
+			pipeline := tb.Pipeline("tomaco", namespace,
+				tb.PipelineSpec(tb.PipelineTask("foo", "platano")),
+			)
+			pipelineRun := tb.PipelineRun("pera", namespace, tb.PipelineRunSpec(pipeline.Name))
+			if _, err := c.PipelineClient.Create(pipeline); err != nil {
+				t.Fatalf("Failed to create Pipeline `%s`: %s", pipeline.Name, err)
+			}
+			if _, err := c.PipelineRunClient.Create(pipelineRun); err != nil {
+				t.Fatalf("Failed to create PipelineRun `%s`: %s", pipelineRun.Name, err)
+			}
+
+			t.Logf("Waiting for Pipelinerun %s in namespace %s to be started", pipelineRun.Name, namespace)
+			if err := WaitForPipelineRunState(c, pipelineRun.Name, timeout, PipelineRunSucceed(pipelineRun.Name), "PipelineRunRunning"); err != nil {
+				t.Fatalf("Error waiting for PipelineRun %s to be succeeded: %s", pipelineRun.Name, err)
+			}
+
+			r, err := c.PipelineRunClient.Get(pipelineRun.Name, metav1.GetOptions{})
+			if err != nil {
+				t.Fatalf("Error getting pipeline %s", pipelineRun.Name)
+			}
+
+			if r != nil {
+				pods, _ := c.KubeClient.Kube.CoreV1().Pods(namespace).List(metav1.ListOptions{})
+				pod := pods.Items[0]
+				if len(pod.Status.ContainerStatuses) != test.containers {
+					t.Errorf("Error getting ContainerStatuses '%s'. %d vs %d", test.name, len(pod.Status.ContainerStatuses), test.containers)
+				}
+				if len(pod.Status.InitContainerStatuses) != test.initContainers {
+					t.Errorf("Error getting InitContainerStatuses '%s'. %d vs %d", test.name, len(pod.Status.InitContainerStatuses), test.initContainers)
+				}
+			}
+		})
+
+	}
+}
 
 func TestPipelineRunFailedAndRetry(t *testing.T) {
 	numberOfRetries := 2
@@ -230,6 +303,7 @@ func TestPipelineRunFailedAndRetry(t *testing.T) {
 		}
 	}
 }
+
 
 // TestTaskRunTimeout is an integration test that will verify a TaskRun can be timed out.
 func TestTaskRunTimeout(t *testing.T) {

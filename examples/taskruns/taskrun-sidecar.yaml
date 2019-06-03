@@ -1,0 +1,17 @@
+apiVersion: tekton.dev/v1alpha1
+kind: TaskRun
+metadata:
+  name: test-sidecar01
+  labels:
+    expect: succeeded
+spec:
+  taskSpec:
+    steps:
+    - name: write
+      image: busybox
+      command: ['/bin/sh']
+      args: ['-c', 'echo building']
+    - name: sidecar01
+      image: busybox
+      command: ['/bin/sh']
+      args: ['-c', 'echo sidecar']

@@ -382,7 +382,7 @@ func TestMakePod(t *testing.T) {
 				t.Errorf("Diff spec:\n%s", d)
 			}
 
-			wantAnnotations := map[string]string{"tekton.dev/ready": ""}
+			wantAnnotations := map[string]string{ReadyAnnotation: ""}
 			if c.bAnnotations != nil {
 				for key, val := range c.bAnnotations {
 					wantAnnotations[key] = val
@@ -416,6 +416,45 @@ func TestMakeWorkingDirScript(t *testing.T) {
 		t.Run(c.desc, func(t *testing.T) {
 			if script := makeWorkingDirScript(c.workingDirs); script != c.want {
 				t.Errorf("Expected `%v`, got `%v`", c.want, script)
+			}
+		})
+	}
+}
+
+func TestAddReadyAnnotation(t *testing.T) {
+	type testcase struct {
+		desc                       string
+		pod                        *corev1.Pod
+		updateFunc                 UpdatePod
+		expectedAnnotationsContain map[string]string
+		expectedErr                error
+	}
+	testerror := xerrors.New("error updating pod")
+	for _, c := range []testcase{{
+		desc:                       "missing ready annotation is added to provided pod",
+		pod:                        &corev1.Pod{},
+		updateFunc:                 func(p *corev1.Pod) (*corev1.Pod, error) { return p, nil },
+		expectedAnnotationsContain: map[string]string{ReadyAnnotation: readyAnnotationValue},
+		expectedErr:                nil,
+	}, {
+		desc:                       "errors experienced during update are returned",
+		pod:                        &corev1.Pod{},
+		updateFunc:                 func(p *corev1.Pod) (*corev1.Pod, error) { return p, testerror },
+		expectedAnnotationsContain: map[string]string{ReadyAnnotation: readyAnnotationValue},
+		expectedErr:                testerror,
+	}} {
+		t.Run(c.desc, func(t *testing.T) {
+			err := AddReadyAnnotation(c.pod, c.updateFunc)
+			if err != c.expectedErr {
+				t.Errorf("expected error %v but received %v", c.expectedErr, err)
+			}
+			for a, v := range c.expectedAnnotationsContain {
+				value, ok := c.pod.ObjectMeta.Annotations[a]
+				if !ok {
+					t.Errorf("Annotation %q missing from Pod", a)
+				} else if value != v {
+					t.Errorf("Expected annotation %q=%q but received %q=%q", a, v, a, value)
+				}
 			}
 		})
 	}
