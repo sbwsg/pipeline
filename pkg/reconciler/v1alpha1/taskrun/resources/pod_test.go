@@ -41,20 +41,6 @@ var (
 	resourceQuantityCmp = cmp.Comparer(func(x, y resource.Quantity) bool {
 		return x.Cmp(y) == 0
 	})
-	// The container that just prints build successful.
-	//nopImage = flag.String("nop-image", "override-with-nop:latest",
-	//	"The container image run at the end of the build to log build success")
-
-	//nopContainer = corev1.Container{
-	//	Name:    "nop",
-	//	Image:   *nopImage,
-	//	Command: []string{"/builder/tools/entrypoint"},
-	//	Args:    []string{"-wait_file", "/builder/tools/0", "-post_file", "/builder/tools/1", "-entrypoint", "/ko-app/nop", "--"},
-	//	VolumeMounts: []corev1.VolumeMount{{
-	//		Name:      entrypoint.MountName,
-	//		MountPath: entrypoint.MountPoint,
-	//	}},
-	//}
 )
 
 func TestTryGetPod(t *testing.T) {
@@ -177,7 +163,6 @@ func TestMakePod(t *testing.T) {
 					},
 				},
 			},
-				//nopContainer,
 			},
 			Volumes: implicitVolumes,
 		},
@@ -223,7 +208,6 @@ func TestMakePod(t *testing.T) {
 					},
 				},
 			},
-				//nopContainer,
 			},
 			Volumes: implicitVolumesWithSecrets,
 		},
@@ -263,7 +247,6 @@ func TestMakePod(t *testing.T) {
 					},
 				},
 			},
-				//nopContainer,
 			},
 			Volumes: implicitVolumes,
 		},
@@ -303,7 +286,6 @@ func TestMakePod(t *testing.T) {
 					},
 				},
 			},
-				//nopContainer,
 			},
 			Volumes: implicitVolumes,
 		},
@@ -349,7 +331,6 @@ func TestMakePod(t *testing.T) {
 					},
 				},
 			},
-				//nopContainer,
 			},
 			Volumes: implicitVolumes,
 		},
