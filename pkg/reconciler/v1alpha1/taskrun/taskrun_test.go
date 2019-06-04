@@ -1210,9 +1210,7 @@ func TestReconcilePodFetchError(t *testing.T) {
 	}
 }
 
-func TestReconcilePodUpdateStatus(t *testing.T) {
-	taskRun := tb.TaskRun("test-taskrun-run-success", "foo", tb.TaskRunSpec(tb.TaskRunTaskRef("test-task")))
-
+func makePod(taskRun *v1alpha1.TaskRun, task *v1alpha1.Task) (*corev1.Pod, error) {
 	logger, _ := logging.NewLogger("", "")
 	cache, _ := entrypoint.NewCache()
 	// TODO(jasonhall): This avoids a circular dependency where
@@ -1222,12 +1220,18 @@ func TestReconcilePodUpdateStatus(t *testing.T) {
 	// specify the Pod we want to exist directly, and not call MakePod from
 	// the build. This will break the cycle and allow us to simply use
 	// clients normally.
-	pod, err := resources.MakePod(taskRun, simpleTask.Spec, fakekubeclientset.NewSimpleClientset(&corev1.ServiceAccount{
+	return resources.MakePod(taskRun, task.Spec, fakekubeclientset.NewSimpleClientset(&corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default",
 			Namespace: taskRun.Namespace,
 		},
 	}), cache, logger)
+}
+
+func TestReconcilePodUpdateStatus(t *testing.T) {
+	taskRun := tb.TaskRun("test-taskrun-run-success", "foo", tb.TaskRunSpec(tb.TaskRunTaskRef("test-task")))
+
+	pod, err := makePod(taskRun, simpleTask)
 	if err != nil {
 		t.Fatalf("MakePod: %v", err)
 	}
@@ -1876,5 +1880,67 @@ func TestHandlePodCreationError(t *testing.T) {
 				t.Errorf("expected to find condition type %q, status %q and reason %q", tc.expectedType, tc.expectedStatus, tc.expectedReason)
 			}
 		})
+	}
+}
+
+func TestKillContainers(t *testing.T) {
+	taskRun := tb.TaskRun("test-taskrun-run-success", "foo", tb.TaskRunSpec(tb.TaskRunTaskRef("test-task")))
+	pod, err := makePod(taskRun, simpleTask)
+	if err != nil {
+		t.Fatalf("MakePod: %v", err)
+	}
+	pod.Status.Phase = corev1.PodRunning
+	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
+		Name:    "test-sidecar",
+		Image:   "test-sidecar:latest",
+		Command: []string{"echo"},
+		Args:    []string{"hello"},
+	})
+	numContainers := len(pod.Spec.Containers)
+	pod.Status.ContainerStatuses = make([]corev1.ContainerStatus, numContainers)
+	pod.Status.ContainerStatuses[numContainers-1] = corev1.ContainerStatus{
+		Name: "test-sidecar-state",
+		State: corev1.ContainerState{
+			Running: &corev1.ContainerStateRunning{StartedAt: metav1.Time{time.Now()}},
+		},
+	}
+	taskRun.Status = v1alpha1.TaskRunStatus{
+		PodName: pod.Name,
+	}
+	d := test.Data{
+		TaskRuns: []*v1alpha1.TaskRun{taskRun},
+		Tasks:    []*v1alpha1.Task{simpleTask},
+		Pods:     []*corev1.Pod{pod},
+	}
+
+	testAssets := getTaskRunController(t, d)
+	clients := testAssets.Clients
+
+	c, ok := testAssets.Controller.Reconciler.(*Reconciler)
+	if !ok {
+		t.Errorf("failed to construct instance of taskrun reconciler")
+		return
+	}
+	err = c.killContainers(taskRun)
+	if err != nil {
+		t.Errorf("error killing containers: %v", err)
+	}
+	pod, err = clients.Kube.CoreV1().Pods(taskRun.Namespace).Get(pod.Name, metav1.GetOptions{})
+	if err != nil {
+		t.Errorf("error getting pod after kill containers: %v", err)
+	}
+	idx := -1
+	for i, c := range pod.Spec.Containers {
+		if c.Name == "test-sidecar" {
+			idx = i
+		}
+	}
+	if idx == -1 {
+		t.Errorf("couldnt find expected sidecar test container")
+	} else {
+		img := pod.Spec.Containers[idx].Image
+		if img != *nopImage {
+			t.Errorf("expected container to be stopped using nopImage, actual: %s", img)
+		}
 	}
 }

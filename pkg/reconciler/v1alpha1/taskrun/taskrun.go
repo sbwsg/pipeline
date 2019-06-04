@@ -185,7 +185,7 @@ func (c *Reconciler) Reconcile(ctx context.Context, key string) error {
 	if tr.IsDone() {
 		c.timeoutHandler.Release(tr)
 		if err := c.killContainers(tr); err != nil {
-			c.Logger.Errorf("Error killing sidecars in for TaskRun %q: %v", name, err.Error())
+			c.Logger.Errorf("Error killing sidecars for TaskRun %q: %v", name, err.Error())
 			return err
 		}
 		return nil
