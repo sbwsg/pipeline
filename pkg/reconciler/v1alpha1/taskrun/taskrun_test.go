@@ -1968,9 +1968,7 @@ func TestKillSidecars(t *testing.T) {
 		expectedImage: "echo-hello:latest",
 	}}
 	for i, tc := range testcases {
-		tc := tc
 		t.Run(tc.description, func(t *testing.T) {
-			t.Parallel()
 			taskrunName := fmt.Sprintf("test-taskrun-kill-sidecars-%d", i)
 			taskRun := tb.TaskRun(taskrunName, "foo", tb.TaskRunSpec(tb.TaskRunTaskRef("test-task")))
 			pod, err := makePod(taskRun, simpleTask)
