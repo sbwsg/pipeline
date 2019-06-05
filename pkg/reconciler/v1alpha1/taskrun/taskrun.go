@@ -62,6 +62,10 @@ const (
 	// is just starting to be reconciled
 	reasonRunning = "Running"
 
+	// reasonBuilding indicates that the reasono for the in progress status is that the TaskRun
+	// is just being built
+	reasonBuilding = "Building"
+
 	// reasonTimedOut indicates that the TaskRun has taken longer than its configured timeout
 	reasonTimedOut = "TaskRunTimeout"
 
@@ -418,7 +422,7 @@ func updateStatusFromPod(taskRun *v1alpha1.TaskRun, pod *corev1.Pod, resourceLis
 			taskRun.Status.SetCondition(&apis.Condition{
 				Type:   apis.ConditionSucceeded,
 				Status: corev1.ConditionUnknown,
-				Reason: "Building",
+				Reason: reasonBuilding,
 			})
 		case corev1.PodFailed:
 			msg := getFailureMessage(pod)
