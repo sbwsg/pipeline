@@ -1936,7 +1936,7 @@ func TestKillSidecars(t *testing.T) {
 			Args:    []string{"hello"},
 		},
 		sidecarState: corev1.ContainerState{
-			Running: &corev1.ContainerStateRunning{StartedAt: metav1.Time{time.Now()}},
+			Running: &corev1.ContainerStateRunning{StartedAt: metav1.NewTime(time.Now())},
 		},
 		expectedImage: *nopImage,
 	}, {
@@ -1949,7 +1949,7 @@ func TestKillSidecars(t *testing.T) {
 			Args:    []string{"hello"},
 		},
 		sidecarState: corev1.ContainerState{
-			Running: &corev1.ContainerStateRunning{StartedAt: metav1.Time{time.Now()}},
+			Running: &corev1.ContainerStateRunning{StartedAt: metav1.NewTime(time.Now())},
 		},
 		expectedImage: "echo-hello:latest",
 	}, {
