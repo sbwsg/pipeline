@@ -231,7 +231,6 @@ func TestPipelineRunFailedAndRetry(t *testing.T) {
 	}
 }
 
-
 // TestTaskRunTimeout is an integration test that will verify a TaskRun can be timed out.
 func TestTaskRunTimeout(t *testing.T) {
 	c, namespace := setup(t)
