@@ -1765,19 +1765,19 @@ func TestUpdateStatusFromPod(t *testing.T) {
 		podStatus: corev1.PodStatus{
 			Phase: corev1.PodRunning,
 			ContainerStatuses: []corev1.ContainerStatus{
-			{
-				Name: "build-step-running-step",
-				State: corev1.ContainerState{
-					Running: &corev1.ContainerStateRunning{},
+				{
+					Name: "build-step-running-step",
+					State: corev1.ContainerState{
+						Running: &corev1.ContainerStateRunning{},
+					},
 				},
-			},
-			{
-				Name: "running-sidecar",
-				State: corev1.ContainerState{
-					Running: &corev1.ContainerStateRunning{},
+				{
+					Name: "running-sidecar",
+					State: corev1.ContainerState{
+						Running: &corev1.ContainerStateRunning{},
+					},
+					Ready: true,
 				},
-				Ready: true,
-			},
 			},
 		},
 		want: v1alpha1.TaskRunStatus{
@@ -1915,64 +1915,100 @@ func TestHandlePodCreationError(t *testing.T) {
 	}
 }
 
-func TestKillContainers(t *testing.T) {
-	taskRun := tb.TaskRun("test-taskrun-run-success", "foo", tb.TaskRunSpec(tb.TaskRunTaskRef("test-task")))
-	pod, err := makePod(taskRun, simpleTask)
-	if err != nil {
-		t.Fatalf("MakePod: %v", err)
-	}
-	pod.Status.Phase = corev1.PodRunning
-	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
-		Name:    "test-sidecar",
-		Image:   "test-sidecar:latest",
-		Command: []string{"echo"},
-		Args:    []string{"hello"},
-	})
-	numContainers := len(pod.Spec.Containers)
-	pod.Status.ContainerStatuses = make([]corev1.ContainerStatus, numContainers)
-	pod.Status.ContainerStatuses[numContainers-1] = corev1.ContainerStatus{
-		Name: "test-sidecar-state",
-		State: corev1.ContainerState{
-			Running: &corev1.ContainerStateRunning{StartedAt: metav1.Time{Time: time.Now()}},
+// TestKillSidecars exercises the killSidecars() method of the TaskRun reconciler.
+// A sidecar is killed by having its container image changed to that of the nop image.
+// This test therefore runs through a series of pod and sidecar configurations,
+// checking whether the resulting image in the sidecar's container matches that expected.
+func TestKillSidecars(t *testing.T) {
+	testcases := []struct {
+		description      string
+		podPhase         corev1.PodPhase
+		sidecarContainer corev1.Container
+		sidecarStatus    corev1.ContainerStatus
+		sidecarState     corev1.ContainerState
+		expectedImage    string
+	}{{
+		description: "a running sidecar container should be stopped",
+		podPhase:    corev1.PodRunning,
+		sidecarContainer: corev1.Container{
+			Name:    "echo-hello",
+			Image:   "echo-hello:latest",
+			Command: []string{"echo"},
+			Args:    []string{"hello"},
 		},
-	}
-	taskRun.Status = v1alpha1.TaskRunStatus{
-		PodName: pod.Name,
-	}
-	d := test.Data{
-		TaskRuns: []*v1alpha1.TaskRun{taskRun},
-		Tasks:    []*v1alpha1.Task{simpleTask},
-		Pods:     []*corev1.Pod{pod},
+		sidecarState: corev1.ContainerState{
+			Running: &corev1.ContainerStateRunning{StartedAt: metav1.Time{time.Now()}},
+		},
+		expectedImage: *nopImage,
+	}, {
+		description: "a pending pod should not have its sidecars stopped",
+		podPhase:    corev1.PodPending,
+		sidecarContainer: corev1.Container{
+			Name:    "echo-hello",
+			Image:   "echo-hello:latest",
+			Command: []string{"echo"},
+			Args:    []string{"hello"},
+		},
+		sidecarState: corev1.ContainerState{
+			Running: &corev1.ContainerStateRunning{StartedAt: metav1.Time{time.Now()}},
+		},
+		expectedImage: "echo-hello:latest",
+	}, {
+		description: "a sidecar container that is not in a running state should not be stopped",
+		podPhase:    corev1.PodRunning,
+		sidecarContainer: corev1.Container{
+			Name:    "echo-hello",
+			Image:   "echo-hello:latest",
+			Command: []string{"echo"},
+			Args:    []string{"hello"},
+		},
+		sidecarState: corev1.ContainerState{
+			Waiting: &corev1.ContainerStateWaiting{},
+		},
+		expectedImage: "echo-hello:latest",
+	}}
+	for i, tc := range testcases {
+		tc := tc
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+			taskrunName := fmt.Sprintf("test-taskrun-kill-sidecars-%d", i)
+			taskRun := tb.TaskRun(taskrunName, "foo", tb.TaskRunSpec(tb.TaskRunTaskRef("test-task")))
+			pod, err := makePod(taskRun, simpleTask)
+			if err != nil {
+				t.Errorf("MakePod: %v", err)
+			}
+			pod.Status.Phase = tc.podPhase
+			pod.Spec.Containers = append(pod.Spec.Containers, tc.sidecarContainer)
+			numContainers := len(pod.Spec.Containers)
+			sidecarIdx := numContainers - 1
+			pod.Status.ContainerStatuses = make([]corev1.ContainerStatus, numContainers)
+			pod.Status.ContainerStatuses[sidecarIdx] = corev1.ContainerStatus{
+				Name:  tc.sidecarContainer.Name + "-status",
+				State: tc.sidecarState,
+			}
+			taskRun.Status = v1alpha1.TaskRunStatus{
+				PodName: pod.Name,
+			}
+			d := test.Data{
+				TaskRuns: []*v1alpha1.TaskRun{taskRun},
+				Tasks:    []*v1alpha1.Task{simpleTask},
+				Pods:     []*corev1.Pod{pod},
+			}
+			testAssets := getTaskRunController(t, d)
+			clients := testAssets.Clients
+			if c, ok := testAssets.Controller.Reconciler.(*Reconciler); !ok {
+				t.Errorf("failed to construct instance of taskrun reconciler")
+			} else if err = c.killSidecars(taskRun); err != nil {
+				t.Errorf("error killing sidecars: %v", err)
+			}
+			pod, err = clients.Kube.CoreV1().Pods(taskRun.Namespace).Get(pod.Name, metav1.GetOptions{})
+			if err != nil {
+				t.Errorf("cant find pod: %v", err)
+			}
+			if pod.Spec.Containers[sidecarIdx].Image != tc.expectedImage {
+				t.Errorf("expected sidecar image %q, actual: %q", tc.expectedImage, pod.Spec.Containers[sidecarIdx].Image)
+			}
+		})
 	}
 
-	testAssets := getTaskRunController(t, d)
-	clients := testAssets.Clients
-
-	c, ok := testAssets.Controller.Reconciler.(*Reconciler)
-	if !ok {
-		t.Errorf("failed to construct instance of taskrun reconciler")
-		return
-	}
-	err = c.killContainers(taskRun)
-	if err != nil {
-		t.Errorf("error killing containers: %v", err)
-	}
-	pod, err = clients.Kube.CoreV1().Pods(taskRun.Namespace).Get(pod.Name, metav1.GetOptions{})
-	if err != nil {
-		t.Errorf("error getting pod after kill containers: %v", err)
-	}
-	idx := -1
-	for i, c := range pod.Spec.Containers {
-		if c.Name == "test-sidecar" {
-			idx = i
-		}
-	}
-	if idx == -1 {
-		t.Errorf("couldnt find expected sidecar test container")
-	} else {
-		img := pod.Spec.Containers[idx].Image
-		if img != *nopImage {
-			t.Errorf("expected container to be stopped using nopImage, actual: %s", img)
-		}
-	}
 }

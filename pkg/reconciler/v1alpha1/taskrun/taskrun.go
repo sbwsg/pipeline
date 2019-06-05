@@ -188,7 +188,7 @@ func (c *Reconciler) Reconcile(ctx context.Context, key string) error {
 
 	if tr.IsDone() {
 		c.timeoutHandler.Release(tr)
-		if err := c.killContainers(tr); err != nil {
+		if err := c.killSidecars(tr); err != nil {
 			c.Logger.Errorf("Error killing sidecars for TaskRun %q: %v", name, err.Error())
 			return err
 		}
@@ -755,7 +755,16 @@ func getExceededResourcesMessage(tr *v1alpha1.TaskRun) string {
 	return fmt.Sprintf("TaskRun pod %q exceeded available resources", tr.Name)
 }
 
-func (c *Reconciler) killContainers(tr *v1alpha1.TaskRun) error {
+// killSidecars stops all sidecar containers running inside a taskrun's pod.
+// A container is determined to be a sidecar if it is currently running - this
+// func is only expected to be called after a TaskRun completes and so all Task
+// containers should have stopped already.
+//
+// A sidecar is killed by replacing its current container image with the nop
+// image, which in turn quickly exits. If the sidedcar defines a command then
+// it will exit with a non-zero status. When we check for TaskRun success we
+// have to check for the containers we care about - not the final Pod status.
+func (c *Reconciler) killSidecars(tr *v1alpha1.TaskRun) error {
 	pod, err := c.KubeClientSet.CoreV1().Pods(tr.Namespace).Get(tr.Status.PodName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -768,13 +777,10 @@ func (c *Reconciler) killContainers(tr *v1alpha1.TaskRun) error {
 	updated := false
 	if pod.Status.Phase == corev1.PodRunning {
 		for i, s := range pod.Status.ContainerStatuses {
-			// Must be a sidecar. Replace with the nop image so that it exits cleanly.
-			// If the sidedcar defines a command this will exit with a non-zero status
-			// so when we check for TaskRun success we have to check for the containers
-			// we care about - not the final Pod status
 			if s.State.Running != nil && pod.Spec.Containers[i].Image != *nopImage {
 				updated = true
 				pod.Spec.Containers[i].Image = *nopImage
+				break
 			}
 		}
 	}
