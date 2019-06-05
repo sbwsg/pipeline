@@ -582,15 +582,18 @@ func (c *Reconciler) updateLabelsAndAnnotations(tr *v1alpha1.TaskRun) (*v1alpha1
 	return newTr, nil
 }
 
+// updateReady updates a Pod to include the "ready" annotation, which will be projected by
+// the Downward API into a volume mounted by the entrypoint container. This will signal to
+// the entrypoint that the TaskRun can proceed.
 func (c *Reconciler) updateReady(pod *corev1.Pod) error {
 	newPod, err := c.KubeClientSet.CoreV1().Pods(pod.Namespace).Get(pod.Name, metav1.GetOptions{})
 	if err != nil {
-		return xerrors.Errorf("Error getting Pod %s when updating ready annotation: %w", pod.Name, err)
+		return xerrors.Errorf("Error getting Pod %q when updating ready annotation: %w", pod.Name, err)
 	}
 	updatePod := c.KubeClientSet.CoreV1().Pods(newPod.Namespace).Update
 	if err := resources.AddReadyAnnotation(newPod, updatePod); err != nil {
 		c.Logger.Errorf("Failed to update ready annotation for pod %q for taskrun %q: %v", pod.Name, pod.Name, err)
-		return err
+		return xerrors.Errorf("Error adding ready annotation to Pod %q: %w", pod.Name, err)
 	}
 
 	return nil

@@ -1924,7 +1924,6 @@ func TestKillSidecars(t *testing.T) {
 		description      string
 		podPhase         corev1.PodPhase
 		sidecarContainer corev1.Container
-		sidecarStatus    corev1.ContainerStatus
 		sidecarState     corev1.ContainerState
 		expectedImage    string
 	}{{
