@@ -273,7 +273,7 @@ func TestMakePod(t *testing.T) {
 				WorkingDir:   workspaceDir,
 			}},
 			Containers: []corev1.Container{{
-				Name:         containerPrefix +"ends-with-invalid",
+				Name:         containerPrefix + "ends-with-invalid",
 				Image:        "image",
 				Env:          implicitEnvVars,
 				VolumeMounts: implicitVolumeMounts,
@@ -318,7 +318,7 @@ func TestMakePod(t *testing.T) {
 				WorkingDir:   workspaceDir,
 			}},
 			Containers: []corev1.Container{{
-				Name:         "build-step-name",
+				Name:         containerPrefix + "name",
 				Image:        "image",
 				Env:          implicitEnvVars,
 				VolumeMounts: implicitVolumeMounts,
