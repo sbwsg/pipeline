@@ -1760,6 +1760,37 @@ func TestUpdateStatusFromPod(t *testing.T) {
 			},
 			Steps: []v1alpha1.StepState{},
 		},
+	}, {
+		desc: "with-running-sidecar",
+		podStatus: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+			{
+				Name: "build-step-running-step",
+				State: corev1.ContainerState{
+					Running: &corev1.ContainerStateRunning{},
+				},
+			},
+			{
+				Name: "running-sidecar",
+				State: corev1.ContainerState{
+					Running: &corev1.ContainerStateRunning{},
+				},
+				Ready: true,
+			},
+			},
+		},
+		want: v1alpha1.TaskRunStatus{
+			Status: duckv1beta1.Status{
+				Conditions: []apis.Condition{conditionBuilding},
+			},
+			Steps: []v1alpha1.StepState{{
+				ContainerState: corev1.ContainerState{
+					Running: &corev1.ContainerStateRunning{},
+				},
+				Name: "running-step",
+			}},
+		},
 	}} {
 		t.Run(c.desc, func(t *testing.T) {
 			observer, _ := observer.New(zap.InfoLevel)
