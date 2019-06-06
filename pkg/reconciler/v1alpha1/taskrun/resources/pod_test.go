@@ -150,7 +150,7 @@ func TestMakePod(t *testing.T) {
 				WorkingDir:   workspaceDir,
 			}},
 			Containers: []corev1.Container{{
-				Name:         containerPrefix + "name",
+				Name:         "step-name",
 				Image:        "image",
 				Env:          implicitEnvVars,
 				VolumeMounts: implicitVolumeMounts,
@@ -195,7 +195,7 @@ func TestMakePod(t *testing.T) {
 				WorkingDir:   workspaceDir,
 			}},
 			Containers: []corev1.Container{{
-				Name:         containerPrefix + "name",
+				Name:         "step-name",
 				Image:        "image",
 				Env:          implicitEnvVars,
 				VolumeMounts: implicitVolumeMounts,
@@ -234,7 +234,7 @@ func TestMakePod(t *testing.T) {
 				WorkingDir:   workspaceDir,
 			}},
 			Containers: []corev1.Container{{
-				Name:         containerPrefix + "a-very-very-long-character-step-name-to-trigger-max-len",
+				Name:         "step-a-very-very-long-character-step-name-to-trigger-max-len",
 				Image:        "image",
 				Env:          implicitEnvVars,
 				VolumeMounts: implicitVolumeMounts,
@@ -273,7 +273,7 @@ func TestMakePod(t *testing.T) {
 				WorkingDir:   workspaceDir,
 			}},
 			Containers: []corev1.Container{{
-				Name:         containerPrefix + "ends-with-invalid",
+				Name:         "step-ends-with-invalid",
 				Image:        "image",
 				Env:          implicitEnvVars,
 				VolumeMounts: implicitVolumeMounts,
@@ -318,7 +318,7 @@ func TestMakePod(t *testing.T) {
 				WorkingDir:   workspaceDir,
 			}},
 			Containers: []corev1.Container{{
-				Name:         containerPrefix + "name",
+				Name:         "step-name",
 				Image:        "image",
 				Env:          implicitEnvVars,
 				VolumeMounts: implicitVolumeMounts,
