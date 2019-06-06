@@ -84,7 +84,7 @@ const (
 
 	// imageDigestExporterContainerName defines the name of the container that will collect the
 	// built images digest
-	imageDigestExporterContainerName = "build-step-image-digest-exporter"
+	imageDigestExporterContainerName = "step-image-digest-exporter"
 )
 
 var (

@@ -90,8 +90,8 @@ const (
 	// Prefixes to add to the name of the init containers.
 	// IMPORTANT: Changing these values without changing fluentd collection configuration
 	// will break log collection for init containers.
-	containerPrefix            = "build-step-"
-	unnamedInitContainerPrefix = "build-step-unnamed-"
+	containerPrefix            = "step-"
+	unnamedInitContainerPrefix = "step-unnamed-"
 	// Name of the credential initialization container.
 	credsInit = "credential-initializer"
 	// Name of the working dir initialization container.

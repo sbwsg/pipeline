@@ -178,7 +178,7 @@ var (
 
 		actualOps = append(actualOps, ops...)
 
-		return tb.PodInitContainer("build-step-credential-initializer-"+suffix, "override-with-creds:latest", actualOps...)
+		return tb.PodInitContainer("step-credential-initializer-"+suffix, "override-with-creds:latest", actualOps...)
 	}
 
 	getPlaceToolsInitContainer = func(ops ...tb.ContainerOp) tb.PodSpecOp {
@@ -194,7 +194,7 @@ var (
 
 		actualOps = append(actualOps, ops...)
 
-		return tb.PodInitContainer("build-step-place-tools", "override-with-entrypoint:latest", actualOps...)
+		return tb.PodInitContainer("step-place-tools", "override-with-entrypoint:latest", actualOps...)
 	}
 )
 
@@ -400,7 +400,7 @@ func TestReconcile(t *testing.T) {
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj"),
 				getPlaceToolsInitContainer(),
-				tb.PodContainer("build-step-simple-step", "foo",
+				tb.PodContainer("step-simple-step", "foo",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
@@ -432,7 +432,7 @@ func TestReconcile(t *testing.T) {
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj"),
 				getPlaceToolsInitContainer(),
-				tb.PodContainer("build-step-sa-step", "foo",
+				tb.PodContainer("step-sa-step", "foo",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
@@ -472,7 +472,7 @@ func TestReconcile(t *testing.T) {
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("78c5n"),
 				getPlaceToolsInitContainer(),
-				tb.PodContainer("build-step-git-source-git-resource-mssqb", "override-with-git:latest",
+				tb.PodContainer("step-git-source-git-resource-mssqb", "override-with-git:latest",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/ko-app/git-init", "--",
 						"-url", "https://foo.git", "-revision", "master", "-path", "/workspace/workspace"),
@@ -488,7 +488,7 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("build-step-mycontainer", "myimage",
+				tb.PodContainer("step-mycontainer", "myimage",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/tools/0", "-post_file", "/builder/tools/1", "-entrypoint", "/mycmd", "--",
 						"--my-arg=foo", "--my-arg-with-default=bar", "--my-arg-with-default2=thedefault",
@@ -504,7 +504,7 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("build-step-image-digest-exporter-mycontainer-9l9zj", "override-with-imagedigest-exporter-image:latest",
+				tb.PodContainer("step-image-digest-exporter-mycontainer-9l9zj", "override-with-imagedigest-exporter-image:latest",
 					tb.Command("/builder/tools/entrypoint"),
 					tb.Args("-wait_file", "/builder/tools/1", "-post_file", "/builder/tools/2", "-entrypoint", "/ko-app/imagedigestexporter", "--",
 						"-images", "[{\"name\":\"image-resource\",\"type\":\"image\",\"url\":\"gcr.io/kristoff/sven\",\"digest\":\"\",\"OutputImageDir\":\"\"}]"),
@@ -519,7 +519,7 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("build-step-myothercontainer", "myotherimage",
+				tb.PodContainer("step-myothercontainer", "myotherimage",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/tools/2", "-post_file", "/builder/tools/3", "-entrypoint", "/mycmd", "--",
 						"--my-other-arg=https://foo.git"),
@@ -534,7 +534,7 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("build-step-image-digest-exporter-myothercontainer-mz4c7", "override-with-imagedigest-exporter-image:latest",
+				tb.PodContainer("step-image-digest-exporter-myothercontainer-mz4c7", "override-with-imagedigest-exporter-image:latest",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/tools/3", "-post_file", "/builder/tools/4", "-entrypoint", "/ko-app/imagedigestexporter", "--",
 						"-images", "[{\"name\":\"image-resource\",\"type\":\"image\",\"url\":\"gcr.io/kristoff/sven\",\"digest\":\"\",\"OutputImageDir\":\"\"}]"),
@@ -578,7 +578,7 @@ func TestReconcile(t *testing.T) {
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("vr6ds"),
 				getPlaceToolsInitContainer(),
-				tb.PodContainer("build-step-create-dir-another-git-resource-78c5n", "override-with-bash-noop:latest",
+				tb.PodContainer("step-create-dir-another-git-resource-78c5n", "override-with-bash-noop:latest",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/ko-app/bash", "--",
 						"-args", "mkdir -p /workspace/another-git-resource"),
@@ -594,7 +594,7 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("build-step-source-copy-another-git-resource-mssqb", "override-with-bash-noop:latest",
+				tb.PodContainer("step-source-copy-another-git-resource-mssqb", "override-with-bash-noop:latest",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/tools/0", "-post_file", "/builder/tools/1", "-entrypoint", "/ko-app/bash", "--",
 						"-args", "cp -r source-folder/. /workspace/another-git-resource"),
@@ -610,7 +610,7 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("build-step-create-dir-git-resource-mz4c7", "override-with-bash-noop:latest",
+				tb.PodContainer("step-create-dir-git-resource-mz4c7", "override-with-bash-noop:latest",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/tools/1", "-post_file", "/builder/tools/2", "-entrypoint", "/ko-app/bash", "--",
 						"-args", "mkdir -p /workspace/git-resource"),
@@ -625,7 +625,7 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("build-step-source-copy-git-resource-9l9zj", "override-with-bash-noop:latest",
+				tb.PodContainer("step-source-copy-git-resource-9l9zj", "override-with-bash-noop:latest",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/tools/2", "-post_file", "/builder/tools/3", "-entrypoint", "/ko-app/bash", "--",
 						"-args", "cp -r source-folder/. /workspace/git-resource"),
@@ -641,7 +641,7 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("build-step-simple-step", "foo",
+				tb.PodContainer("step-simple-step", "foo",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/tools/3", "-post_file", "/builder/tools/4", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
@@ -655,7 +655,7 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("build-step-source-mkdir-git-resource-6nl7g", "override-with-bash-noop:latest",
+				tb.PodContainer("step-source-mkdir-git-resource-6nl7g", "override-with-bash-noop:latest",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/tools/4", "-post_file", "/builder/tools/5", "-entrypoint", "/ko-app/bash", "--",
 						"-args", "mkdir -p output-folder"),
@@ -671,7 +671,7 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("build-step-source-copy-git-resource-j2tds", "override-with-bash-noop:latest",
+				tb.PodContainer("step-source-copy-git-resource-j2tds", "override-with-bash-noop:latest",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/tools/5", "-post_file", "/builder/tools/6", "-entrypoint", "/ko-app/bash", "--",
 						"-args", "cp -r /workspace/git-resource/. output-folder"),
@@ -702,7 +702,7 @@ func TestReconcile(t *testing.T) {
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("mz4c7"),
 				getPlaceToolsInitContainer(),
-				tb.PodContainer("build-step-git-source-git-resource-9l9zj", "override-with-git:latest",
+				tb.PodContainer("step-git-source-git-resource-9l9zj", "override-with-git:latest",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/ko-app/git-init", "--",
 						"-url", "https://foo.git", "-revision", "master", "-path", "/workspace/workspace"),
@@ -718,7 +718,7 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("build-step-mycontainer", "myimage",
+				tb.PodContainer("step-mycontainer", "myimage",
 					tb.Command(entrypointLocation),
 					tb.WorkingDir(workspaceDir),
 					tb.Args("-wait_file", "/builder/tools/0", "-post_file", "/builder/tools/1", "-entrypoint", "/mycmd", "--",
@@ -749,7 +749,7 @@ func TestReconcile(t *testing.T) {
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj"),
 				getPlaceToolsInitContainer(),
-				tb.PodContainer("build-step-simple-step", "foo",
+				tb.PodContainer("step-simple-step", "foo",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
@@ -779,7 +779,7 @@ func TestReconcile(t *testing.T) {
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("mz4c7"),
 				getPlaceToolsInitContainer(),
-				tb.PodContainer("build-step-git-source-workspace-9l9zj", "override-with-git:latest",
+				tb.PodContainer("step-git-source-workspace-9l9zj", "override-with-git:latest",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/ko-app/git-init", "--",
 						"-url", "github.com/foo/bar.git", "-revision", "rel-can", "-path",
@@ -796,7 +796,7 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				tb.PodContainer("build-step-mystep", "ubuntu",
+				tb.PodContainer("step-mystep", "ubuntu",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/tools/0", "-post_file", "/builder/tools/1", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
@@ -827,7 +827,7 @@ func TestReconcile(t *testing.T) {
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj"),
 				getPlaceToolsInitContainer(),
-				tb.PodContainer("build-step-simple-step", "foo",
+				tb.PodContainer("step-simple-step", "foo",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
@@ -859,7 +859,7 @@ func TestReconcile(t *testing.T) {
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj"),
 				getPlaceToolsInitContainer(),
-				tb.PodContainer("build-step-simple-step", "foo",
+				tb.PodContainer("step-simple-step", "foo",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
@@ -890,7 +890,7 @@ func TestReconcile(t *testing.T) {
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj", tb.EnvVar("FRUIT", "APPLE")),
 				getPlaceToolsInitContainer(tb.EnvVar("FRUIT", "APPLE")),
-				tb.PodContainer("build-step-env-step", "foo", tb.Command(entrypointLocation),
+				tb.PodContainer("step-env-step", "foo", tb.Command(entrypointLocation),
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
@@ -922,7 +922,7 @@ func TestReconcile(t *testing.T) {
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj"),
 				getPlaceToolsInitContainer(),
-				tb.PodContainer("build-step-step1", "foo",
+				tb.PodContainer("step-step1", "foo",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
@@ -943,7 +943,7 @@ func TestReconcile(t *testing.T) {
 						),
 					),
 				),
-				tb.PodContainer("build-step-step2", "foo",
+				tb.PodContainer("step-step2", "foo",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/tools/0", "-post_file", "/builder/tools/1", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
@@ -960,7 +960,7 @@ func TestReconcile(t *testing.T) {
 						),
 					),
 				),
-				tb.PodContainer("build-step-step3", "foo",
+				tb.PodContainer("step-step3", "foo",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/tools/1", "-post_file", "/builder/tools/2", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
@@ -990,7 +990,7 @@ func TestReconcile(t *testing.T) {
 				tb.PodRestartPolicy(corev1.RestartPolicyNever),
 				getCredentialsInitContainer("9l9zj"),
 				getPlaceToolsInitContainer(),
-				tb.PodContainer("build-step-simple-step", "foo",
+				tb.PodContainer("step-simple-step", "foo",
 					tb.Command(entrypointLocation),
 					tb.Args("-wait_file", "/builder/downward/ready", "-post_file", "/builder/tools/0", "-wait_file_content", "-entrypoint", "/mycmd", "--"),
 					tb.WorkingDir(workspaceDir),
@@ -1488,7 +1488,7 @@ func TestUpdateStatusFromPod(t *testing.T) {
 				// creds-init; ignored
 			}},
 			ContainerStatuses: []corev1.ContainerStatus{{
-				Name: "build-step-state-name",
+				Name: "step-state-name",
 				State: corev1.ContainerState{
 					Terminated: &corev1.ContainerStateTerminated{
 						ExitCode: 123,
@@ -1517,7 +1517,7 @@ func TestUpdateStatusFromPod(t *testing.T) {
 				// git-init; ignored.
 			}},
 			ContainerStatuses: []corev1.ContainerStatus{{
-				Name: "build-step-state-name",
+				Name: "step-state-name",
 				State: corev1.ContainerState{
 					Terminated: &corev1.ContainerStateTerminated{
 						ExitCode: 123,
@@ -1542,7 +1542,7 @@ func TestUpdateStatusFromPod(t *testing.T) {
 		podStatus: corev1.PodStatus{
 			Phase: corev1.PodSucceeded,
 			ContainerStatuses: []corev1.ContainerStatus{{
-				Name: "build-step-step-push",
+				Name: "step-step-push",
 				State: corev1.ContainerState{
 					Terminated: &corev1.ContainerStateTerminated{
 						ExitCode: 0,
@@ -1569,7 +1569,7 @@ func TestUpdateStatusFromPod(t *testing.T) {
 		podStatus: corev1.PodStatus{
 			Phase: corev1.PodRunning,
 			ContainerStatuses: []corev1.ContainerStatus{{
-				Name: "build-step-running-step",
+				Name: "step-running-step",
 				State: corev1.ContainerState{
 					Running: &corev1.ContainerStateRunning{},
 				},
@@ -1594,7 +1594,7 @@ func TestUpdateStatusFromPod(t *testing.T) {
 				// creds-init status; ignored
 			}},
 			ContainerStatuses: []corev1.ContainerStatus{{
-				Name:    "build-step-failure",
+				Name:    "step-failure",
 				ImageID: "image-id",
 				State: corev1.ContainerState{
 					Terminated: &corev1.ContainerStateTerminated{
@@ -1608,7 +1608,7 @@ func TestUpdateStatusFromPod(t *testing.T) {
 				Conditions: []apis.Condition{{
 					Type:    apis.ConditionSucceeded,
 					Status:  corev1.ConditionFalse,
-					Message: `"build-step-failure" exited with code 123 (image: "image-id"); for logs run: kubectl -n foo logs pod -c build-step-failure`,
+					Message: `"step-failure" exited with code 123 (image: "image-id"); for logs run: kubectl -n foo logs pod -c step-failure`,
 				}},
 			},
 			Steps: []v1alpha1.StepState{{
@@ -1662,7 +1662,7 @@ func TestUpdateStatusFromPod(t *testing.T) {
 				// creds-init status; ignored
 			}},
 			ContainerStatuses: []corev1.ContainerStatus{{
-				Name: "build-step-status-name",
+				Name: "step-status-name",
 				State: corev1.ContainerState{
 					Waiting: &corev1.ContainerStateWaiting{
 						Message: "i'm pending",
@@ -1676,7 +1676,7 @@ func TestUpdateStatusFromPod(t *testing.T) {
 					Type:    apis.ConditionSucceeded,
 					Status:  corev1.ConditionUnknown,
 					Reason:  "Pending",
-					Message: `build step "build-step-status-name" is pending with reason "i'm pending"`,
+					Message: `build step "step-status-name" is pending with reason "i'm pending"`,
 				}},
 			},
 			Steps: []v1alpha1.StepState{{
@@ -1766,7 +1766,7 @@ func TestUpdateStatusFromPod(t *testing.T) {
 			Phase: corev1.PodRunning,
 			ContainerStatuses: []corev1.ContainerStatus{
 				{
-					Name: "build-step-running-step",
+					Name: "step-running-step",
 					State: corev1.ContainerState{
 						Running: &corev1.ContainerStateRunning{},
 					},

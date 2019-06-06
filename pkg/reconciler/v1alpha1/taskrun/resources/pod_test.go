@@ -215,7 +215,7 @@ func TestMakePod(t *testing.T) {
 		desc: "very-long-step-name",
 		ts: v1alpha1.TaskSpec{
 			Steps: []corev1.Container{{
-				Name:  "a-very-long-character-step-name-to-trigger-max-len----and-invalid-characters",
+				Name:  "a-very-very-long-character-step-name-to-trigger-max-len----and-invalid-characters",
 				Image: "image",
 			}},
 		},
@@ -234,7 +234,7 @@ func TestMakePod(t *testing.T) {
 				WorkingDir:   workspaceDir,
 			}},
 			Containers: []corev1.Container{{
-				Name:         containerPrefix + "a-very-long-character-step-name-to-trigger-max-len",
+				Name:         containerPrefix + "a-very-very-long-character-step-name-to-trigger-max-len",
 				Image:        "image",
 				Env:          implicitEnvVars,
 				VolumeMounts: implicitVolumeMounts,
