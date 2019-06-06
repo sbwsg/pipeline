@@ -549,11 +549,6 @@ func TestReconcile(t *testing.T) {
 						tb.EphemeralStorage("0"),
 					)),
 				),
-				//tb.PodContainer("nop", "override-with-nop:latest",
-				//	tb.Command("/builder/tools/entrypoint"),
-				//	tb.Args("-wait_file", "/builder/tools/4", "-post_file", "/builder/tools/5", "-entrypoint", "/ko-app/nop", "--"),
-				//	tb.VolumeMount(entrypoint.MountName, entrypoint.MountPoint),
-				//),
 			),
 		),
 	}, {
