@@ -39,6 +39,11 @@ var (
 func main() {
 	flag.Parse()
 
+	runner, err := NewRealRunner()
+	if err != nil {
+		log.Printf("fatal error, unable to construct runner: %v", err)
+	}
+
 	e := entrypoint.Entrypointer{
 		Entrypoint:      *ep,
 		WaitFile:        *waitFile,
@@ -46,7 +51,7 @@ func main() {
 		PostFile:        *postFile,
 		Args:            flag.Args(),
 		Waiter:          &RealWaiter{},
-		Runner:          &RealRunner{},
+		Runner:          runner,
 		PostWriter:      &RealPostWriter{},
 	}
 	if err := e.Go(); err != nil {
