@@ -32,10 +32,7 @@ type SingleLineMessage struct {
 	LogMeta
 }
 
-// HTTPJSONExporter exports log lines to a user-configured HTTP endpoint. Lines
-// are buffered to reduce the number of individual HTTP requests. Messages received
-// from this exporter may include multiple log lines and those lines may come from
-// different streams. The stream name is part of the received JSON message.
+// HTTPJSONExporter exports log lines to a user-configured HTTP endpoint.
 type HTTPJSONExporter struct {
 	destination *url.URL
 	stdout      io.WriteCloser
