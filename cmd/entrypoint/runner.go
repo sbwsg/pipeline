@@ -22,6 +22,10 @@ var _ entrypoint.Runner = (*RealRunner)(nil)
 func NewRealRunner() (*RealRunner, error) {
 	logsconfig := map[string]string{
 		"destination": "http://localhost:9999",
+		"pipeline":    "fooPipeline",
+		"pipelinerun": "fooPipelineRun",
+		"task":        "fooTask",
+		"taskrun":     "fooTaskRun",
 	}
 	logs := &logexport.HTTPJSONExporter{}
 	if err := logs.Config(logsconfig); err != nil {

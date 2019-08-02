@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 
@@ -32,7 +33,8 @@ type SingleLineMessage struct {
 	LogMeta
 }
 
-// HTTPJSONExporter exports log lines to a user-configured HTTP endpoint.
+// HTTPJSONExporter exports log lines to a user-configured HTTP endpoint. Each log line
+// is sent as its own POST request.
 type HTTPJSONExporter struct {
 	destination *url.URL
 	stdout      io.WriteCloser
@@ -61,7 +63,6 @@ func (h *HTTPJSONExporter) Config(conf map[string]string) error {
 	h.queue = make(chan *SingleLineMessage, 100)
 	h.stdout = &httpWriter{meta, "stdout", h.destination, h.queue}
 	h.stderr = &httpWriter{meta, "stderr", h.destination, h.queue}
-	// POST the log lines async to the sidecar
 	go func() {
 		for msg := range h.queue {
 			h.send(msg)
@@ -75,8 +76,15 @@ func (h *HTTPJSONExporter) send(msg *SingleLineMessage) error {
 	if err != nil {
 		return err
 	}
-	if _, err := http.Post(h.destination.String(), "text/plain", bytes.NewReader(b)); err != nil {
+	if resp, err := http.Post(h.destination.String(), "text/plain", bytes.NewReader(b)); err != nil {
 		return err
+	} else if resp.Body != nil {
+		// Drain response body to let Transport reuse connection
+		// See Body field's comment (from https://golang.org/pkg/net/http/#Response):
+		// The default HTTP client's Transport may not reuse HTTP/1.x "keep-alive"
+		// TCP connections if the Body is not read to completion and closed.
+		io.Copy(ioutil.Discard, resp.Body)
+		resp.Body.Close()
 	}
 	return nil
 }
@@ -92,6 +100,7 @@ func (h *HTTPJSONExporter) Stderr() io.Writer {
 func (h *HTTPJSONExporter) Close() error {
 	stdoutErr := h.stdout.Close()
 	stderrErr := h.stderr.Close()
+	close(h.queue)
 	if stdoutErr != nil {
 		return stdoutErr
 	}
