@@ -37,6 +37,7 @@ type HTTPJSONExporter struct {
 	destination *url.URL
 	stdout      io.WriteCloser
 	stderr      io.WriteCloser
+	queue       chan *SingleLineMessage
 }
 
 var _ Exporter = (*HTTPJSONExporter)(nil)
@@ -57,8 +58,26 @@ func (h *HTTPJSONExporter) Config(conf map[string]string) error {
 		Task:        conf["task"],
 		TaskRun:     conf["taskrun"],
 	}
-	h.stdout = &httpWriter{meta, "stdout", h.destination}
-	h.stderr = &httpWriter{meta, "stderr", h.destination}
+	h.queue = make(chan *SingleLineMessage, 100)
+	h.stdout = &httpWriter{meta, "stdout", h.destination, h.queue}
+	h.stderr = &httpWriter{meta, "stderr", h.destination, h.queue}
+	// POST the log lines async to the sidecar
+	go func() {
+		for msg := range h.queue {
+			h.send(msg)
+		}
+	}()
+	return nil
+}
+
+func (h *HTTPJSONExporter) send(msg *SingleLineMessage) error {
+	b, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	if _, err := http.Post(h.destination.String(), "text/plain", bytes.NewReader(b)); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -84,29 +103,21 @@ type httpWriter struct {
 
 	stream      string
 	destination *url.URL
+	queue       chan *SingleLineMessage
 }
 
 var _ io.WriteCloser = (*httpWriter)(nil)
 
-// May want to make this async / non-blocking so that the io.Multiwriter
-// in RealRunner doesn't have to hang around waiting for this func's
-// http.Post to complete before another log line can be received.
+// Async Write. TODO(sbws): need to propagate error in case async write ever fails
 func (h *httpWriter) Write(line []byte) (int, error) {
-	msg := &SingleLineMessage{
+	h.queue <- &SingleLineMessage{
 		LogMeta: h.LogMeta,
 		LogLine: LogLine{
 			Stream:  h.stream,
 			Content: string(line),
 		},
 	}
-	b, err := json.Marshal(msg)
-	if err != nil {
-		return 0, err
-	}
-	if _, err := http.Post(h.destination.String(), "text/plain", bytes.NewReader(b)); err != nil {
-		return 0, err
-	}
-	return len(b), nil
+	return len(line), nil
 }
 
 func (h *httpWriter) Close() error {
