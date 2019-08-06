@@ -33,12 +33,30 @@ var (
 	waitFileContent = flag.Bool("wait_file_content", false, "If specified, expect wait_file to have content")
 	postFile        = flag.String("post_file", "", "If specified, file to write upon completion")
 
+	logURL      = flag.String("log_url", "", "If specified, the HTTP endpoint to send log output")
+	pipeline    = flag.String("pipeline", "", "If specified, the pipeline this entrypoint is being executed by")
+	pipelinerun = flag.String("pipelinerun", "", "If specified, the pipelinerun this entrypoint is being executed by")
+	task        = flag.String("task", "", "If specified, the task this entrypoint is being executed by")
+	taskrun     = flag.String("taskrun", "", "If specified, the taskrun this entrypoint is being executed by")
+
 	waitPollingInterval = time.Second
 )
 
 func main() {
 	flag.Parse()
 
+	var runner *RealRunner
+	if *logURL != "" {
+		runner = NewRealRunner(&LogConfig{
+			URL:         *logURL,
+			Pipeline:    *pipeline,
+			PipelineRun: *pipelinerun,
+			Task:        *task,
+			TaskRun:     *taskrun,
+		})
+	} else {
+		runner = NewRealRunner(nil)
+	}
 	e := entrypoint.Entrypointer{
 		Entrypoint:      *ep,
 		WaitFile:        *waitFile,
@@ -46,10 +64,11 @@ func main() {
 		PostFile:        *postFile,
 		Args:            flag.Args(),
 		Waiter:          &RealWaiter{},
-		Runner:          &RealRunner{},
+		Runner:          runner,
 		PostWriter:      &RealPostWriter{},
 	}
 	if err := e.Go(); err != nil {
+		log.Printf("THERE WAS AN ERROR: %v", err)
 		switch err.(type) {
 		case skipError:
 			os.Exit(0)
