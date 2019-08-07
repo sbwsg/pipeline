@@ -21,6 +21,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/signal"
+	"runtime/pprof"
 	"syscall"
 	"time"
 
@@ -45,6 +47,26 @@ var (
 func main() {
 	flag.Parse()
 
+	f, err := os.Create("./cpuprofile")
+	if err != nil {
+		log.Printf("error opening cpuprofile for writing: %v", err)
+		os.Exit(21)
+	}
+	log.Printf("STARTING CPU PROFILE")
+	pprof.StartCPUProfile(f)
+
+	exitCh := make(chan struct{})
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		for _ = range c {
+			log.Printf("STOPPING CPU PROFILE")
+			pprof.StopCPUProfile()
+			log.Printf("STOPPED CPU PROFILE")
+			close(exitCh)
+		}
+	}()
+
 	var runner *RealRunner
 	if *logURL != "" {
 		runner = NewRealRunner(&LogConfig{
@@ -68,7 +90,7 @@ func main() {
 		PostWriter:      &RealPostWriter{},
 	}
 	if err := e.Go(); err != nil {
-		log.Printf("THERE WAS AN ERROR: %v", err)
+		<-exitCh
 		switch err.(type) {
 		case skipError:
 			os.Exit(0)
@@ -87,4 +109,5 @@ func main() {
 			log.Fatalf("Error executing command: %v", err)
 		}
 	}
+	<-exitCh
 }
