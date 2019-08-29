@@ -433,7 +433,6 @@ func TestMakePod(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestAddReadyAnnotation(t *testing.T) {
