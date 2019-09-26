@@ -48,9 +48,9 @@ aggregates them into their respective files in `$HOME`.
    information.
 
 1. Generate the value of `ssh-privatekey` by copying the value of (for example)
-   `cat ~/.ssh/id_rsa | base64`.
+   `cat ~/.ssh/id_rsa | base64 -w 0`.
 
-1. Copy the value of `cat ~/.ssh/known_hosts | base64` to the `known_hosts`
+1. Copy the value of `cat ~/.ssh/known_hosts | base64 -w 0` to the `known_hosts`
    field.
 
 1. Next, direct a `ServiceAccount` to use this `Secret` (in
