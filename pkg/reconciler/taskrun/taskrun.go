@@ -30,6 +30,7 @@ import (
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1alpha1"
 	listers "github.com/tektoncd/pipeline/pkg/client/listers/pipeline/v1alpha1"
 	"github.com/tektoncd/pipeline/pkg/reconciler"
+	"github.com/tektoncd/pipeline/pkg/reconciler/taskrun/artifacts"
 	"github.com/tektoncd/pipeline/pkg/reconciler/taskrun/entrypoint"
 	"github.com/tektoncd/pipeline/pkg/reconciler/taskrun/resources"
 	"github.com/tektoncd/pipeline/pkg/reconciler/taskrun/resources/cloudevent"
@@ -63,15 +64,17 @@ type Reconciler struct {
 	*reconciler.Base
 
 	// listers index properties about resources
-	taskRunLister     listers.TaskRunLister
-	taskLister        listers.TaskLister
-	clusterTaskLister listers.ClusterTaskLister
-	resourceLister    listers.PipelineResourceLister
-	cloudEventClient  cloudevent.CEClient
-	tracker           tracker.Interface
-	cache             *entrypoint.Cache
-	timeoutHandler    *reconciler.TimeoutSet
-	metrics           *Recorder
+	taskRunLister          listers.TaskRunLister
+	taskLister             listers.TaskLister
+	clusterTaskLister      listers.ClusterTaskLister
+	resourceLister         listers.PipelineResourceLister
+	artifactTypeLister     listers.ArtifactTypeLister
+	artifactInstanceLister listers.ArtifactInstanceLister
+	cloudEventClient       cloudevent.CEClient
+	tracker                tracker.Interface
+	cache                  *entrypoint.Cache
+	timeoutHandler         *reconciler.TimeoutSet
+	metrics                *Recorder
 }
 
 // Check that our Reconciler implements controller.Reconciler
@@ -151,6 +154,9 @@ func (c *Reconciler) Reconcile(ctx context.Context, key string) error {
 				c.Logger.Warnf("Failed to log the metrics : %v", err)
 			}
 		}(c.metrics)
+
+		// Read from resource results in case any resource steps ran after the task failed.
+		updateTaskRunResourceResult(tr, pod, c.Logger)
 
 		return merr.ErrorOrNil()
 	}
@@ -279,6 +285,17 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1alpha1.TaskRun) error 
 		if err := c.updateTaskRunStatusForTimeout(tr, c.KubeClientSet.CoreV1().Pods(tr.Namespace).Delete); err != nil {
 			return err
 		}
+		return nil
+	}
+
+	if err := artifacts.ResolveArtifacts(tr, taskSpec, c.artifactTypeLister); err != nil {
+		c.Logger.Errorf("Failed to resolve artifacts for taskrun %s: %v", tr.Name, err)
+		tr.Status.SetCondition(&apis.Condition{
+			Type:    apis.ConditionSucceeded,
+			Status:  corev1.ConditionFalse,
+			Reason:  status.ReasonFailedResolution,
+			Message: err.Error(),
+		})
 		return nil
 	}
 
@@ -493,6 +510,8 @@ func (c *Reconciler) createPod(tr *v1alpha1.TaskRun, rtr *resources.ResolvedTask
 		return nil, err
 	}
 
+	ts = propagateDefaultErrorStrategy(ts)
+
 	ts, err = createRedirectedTaskSpec(c.KubeClientSet, c.Images.EntryPointImage, ts, tr, c.cache, c.Logger)
 	if err != nil {
 		return nil, xerrors.Errorf("couldn't create redirected TaskSpec: %w", err)
@@ -517,7 +536,22 @@ func (c *Reconciler) createPod(tr *v1alpha1.TaskRun, rtr *resources.ResolvedTask
 	return c.KubeClientSet.CoreV1().Pods(tr.Namespace).Create(pod)
 }
 
-// CreateRedirectedTaskSpec takes a TaskSpec, a persistent volume claim name, a taskrun and
+// propagateDefaultErrorStrategy takes a task spec and copies its default error
+// strategy, if present, into the error strategy field of any step that doesnt
+// specify its own.
+func propagateDefaultErrorStrategy(ts *v1alpha1.TaskSpec) *v1alpha1.TaskSpec {
+	if strings.TrimSpace(string(ts.DefaultErrorStrategy)) == "" {
+		return ts
+	}
+	for i := range ts.Steps {
+		if strings.TrimSpace(string(ts.Steps[i].ErrorStrategy)) == "" {
+			ts.Steps[i].ErrorStrategy = ts.DefaultErrorStrategy
+		}
+	}
+	return ts
+}
+
+// createRedirectedTaskSpec takes a TaskSpec, a persistent volume claim name, a taskrun and
 // an entrypoint cache creates a build where all entrypoints are switched to
 // be the entrypoint redirector binary. This function assumes that it receives
 // its own copy of the TaskSpec and modifies it freely

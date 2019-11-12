@@ -1,0 +1,92 @@
+apiVersion: tekton.dev/v1alpha1
+kind: Task
+metadata:
+  name: cat-file-from-git
+spec:
+  inputs:
+    params:
+      - name: filename
+        default: README.md
+  artifacts:
+    - name: source
+      type: simple-git
+      mode: ro
+  steps:
+    - name: cat-file
+      image: alpine
+      script: |
+        #!/usr/bin/env sh
+        set -e
+        set -x
+        cat $(artifacts.source.params.dir)/$(inputs.params.filename)
+---
+apiVersion: tekton.dev/v1alpha1
+kind: Task
+metadata:
+  name: grep-file-from-git
+spec:
+  inputs:
+    params:
+      - name: haystack
+        default: README.md
+      - name: needle
+        default: foo
+  artifacts:
+    - name: source
+      type: simple-git
+      mode: ro
+  steps:
+    - name: grep-file
+      image: alpine
+      script: |
+        #!/usr/bin/env sh
+        set -e
+        set -x
+        cat $(artifacts.source.params.dir)/$(inputs.params.haystack) | grep $(inputs.params.needle)
+---
+apiVersion: tekton.dev/v1alpha1
+kind: Pipeline
+metadata:
+  name: artifact-sketch-pipeline
+spec:
+  artifacts:
+    - name: my-project-git-repo
+      type: simple-git
+  tasks:
+    - name: cat-file-1
+      taskRef:
+        name: cat-file-from-git
+      params:
+        - name: filename
+          value: README.md
+      artifacts:
+        - name: source
+          from: artifacts.my-project-git-repo
+    - name: grep-file-1
+      taskRef:
+        name: grep-file-from-git
+      params:
+        - name: haystack
+          value: DEVELOPMENT.md
+        - name: needle
+          value: Tear
+      artifacts:
+        - name: source
+          from: artifacts.my-project-git-repo
+---
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineRun
+metadata:
+  name: simple-artifact-sketch
+spec:
+  pipelineRef:
+    name: artifact-sketch-pipeline
+  artifacts:
+    - name: my-project-git-repo
+      params:
+        - name: url
+          value: https://github.com/tektoncd/pipeline.git
+        - name: dir
+          value: /workspace/source
+        - name: ref
+          value: master

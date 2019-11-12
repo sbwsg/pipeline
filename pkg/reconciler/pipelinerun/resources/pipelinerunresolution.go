@@ -18,7 +18,9 @@ package resources
 
 import (
 	"fmt"
+	"log"
 	"reflect"
+	"strings"
 
 	"go.uber.org/zap"
 	"golang.org/x/xerrors"
@@ -63,6 +65,7 @@ type ResolvedPipelineRunTask struct {
 	ResolvedTaskResources *resources.ResolvedTaskResources
 	// ConditionChecks ~~TaskRuns but for evaling conditions
 	ResolvedConditionChecks TaskConditionCheckState // Could also be a TaskRun or maybe just a Pod?
+	ResolvedTaskArtifacts   ResolvedPipelineTaskArtifacts
 }
 
 // PipelineRunState is a slice of ResolvedPipelineRunTasks the represents the current execution
@@ -276,6 +279,12 @@ func ResolvePipelineRun(
 			rprt.TaskRun = taskRun
 		}
 
+		rpta, err := ResolvePipelineTaskArtifacts(pipelineRun, pt, &spec, t.TaskMetadata().Name, taskRun)
+		if err != nil {
+			return nil, fmt.Errorf("ARTIFACT ERROR: %w", err)
+		}
+		rprt.ResolvedTaskArtifacts = rpta
+
 		// Get all conditions that this pipelineTask will be using, if any
 		if len(pt.Conditions) > 0 {
 			rcc, err := resolveConditionChecks(&pt, pipelineRun.Status.TaskRuns, rprt.TaskRunName, getTaskRun, getCondition, providedResources)
@@ -473,4 +482,55 @@ func ResolvePipelineTaskResources(pt v1alpha1.PipelineTask, ts *v1alpha1.TaskSpe
 		}
 	}
 	return &rtr, nil
+}
+
+func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.PipelineTask, ts *v1alpha1.TaskSpec, taskName string, taskRun *v1alpha1.TaskRun) (ResolvedPipelineTaskArtifacts, error) {
+	rpta := ResolvedPipelineTaskArtifacts{
+		TaskName: taskName,
+		TaskSpec: ts,
+	}
+	for _, a := range ts.Artifacts {
+		if a.Mode == "ro" || a.Mode == "rw" {
+			for _, pta := range pt.Artifacts {
+				if pta.Name == a.Name {
+					parts := strings.Split(pta.From, ".")
+					for i := range parts {
+						parts[i] = strings.TrimSpace(parts[i])
+					}
+					if len(parts) == 0 {
+						log.Printf("BAD: RECEIVED FROM DECLARATION WITH NO PARTS")
+						break
+					}
+					if parts[0] == "artifacts" {
+						expectedArtifactName := parts[1]
+						for i := range pipelineRun.Spec.Artifacts {
+							if pipelineRun.Spec.Artifacts[i].Name == expectedArtifactName {
+								rpta.Artifacts = append(rpta.Artifacts, ResolvedPipelineTaskArtifact{
+									NameInPipeline: expectedArtifactName,
+									NameInTask:     a.Name,
+									Instance:       pipelineRun.Spec.Artifacts[i],
+								})
+							}
+						}
+					} else if parts[0] == "tasks" {
+						// TODO: extricate artifact from taskrun resource results
+					}
+				}
+			}
+		}
+	}
+	return rpta, nil
+}
+
+type ResolvedPipelineTaskArtifacts struct {
+	TaskName string
+	TaskSpec *v1alpha1.TaskSpec
+
+	Artifacts []ResolvedPipelineTaskArtifact
+}
+
+type ResolvedPipelineTaskArtifact struct {
+	NameInPipeline string // The name that the pipeline uses to refer to this artifact
+	NameInTask     string // The name that the task uses to refer to this artifact
+	Instance       v1alpha1.ArtifactInstanceEmbedding
 }

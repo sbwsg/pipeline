@@ -18,6 +18,10 @@ limitations under the License.
 
 package v1alpha1
 
+type ArtifactInstanceExpansion interface{}
+
+type ArtifactTypeExpansion interface{}
+
 type ClusterTaskExpansion interface{}
 
 type ConditionExpansion interface{}

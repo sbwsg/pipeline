@@ -18,6 +18,22 @@ limitations under the License.
 
 package v1alpha1
 
+// ArtifactInstanceListerExpansion allows custom methods to be added to
+// ArtifactInstanceLister.
+type ArtifactInstanceListerExpansion interface{}
+
+// ArtifactInstanceNamespaceListerExpansion allows custom methods to be added to
+// ArtifactInstanceNamespaceLister.
+type ArtifactInstanceNamespaceListerExpansion interface{}
+
+// ArtifactTypeListerExpansion allows custom methods to be added to
+// ArtifactTypeLister.
+type ArtifactTypeListerExpansion interface{}
+
+// ArtifactTypeNamespaceListerExpansion allows custom methods to be added to
+// ArtifactTypeNamespaceLister.
+type ArtifactTypeNamespaceListerExpansion interface{}
+
 // ClusterTaskListerExpansion allows custom methods to be added to
 // ClusterTaskLister.
 type ClusterTaskListerExpansion interface{}

@@ -24,6 +24,10 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// ArtifactInstances returns a ArtifactInstanceInformer.
+	ArtifactInstances() ArtifactInstanceInformer
+	// ArtifactTypes returns a ArtifactTypeInformer.
+	ArtifactTypes() ArtifactTypeInformer
 	// ClusterTasks returns a ClusterTaskInformer.
 	ClusterTasks() ClusterTaskInformer
 	// Conditions returns a ConditionInformer.
@@ -49,6 +53,16 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// ArtifactInstances returns a ArtifactInstanceInformer.
+func (v *version) ArtifactInstances() ArtifactInstanceInformer {
+	return &artifactInstanceInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// ArtifactTypes returns a ArtifactTypeInformer.
+func (v *version) ArtifactTypes() ArtifactTypeInformer {
+	return &artifactTypeInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // ClusterTasks returns a ClusterTaskInformer.

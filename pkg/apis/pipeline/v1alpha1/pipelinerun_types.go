@@ -70,6 +70,9 @@ type PipelineRunSpec struct {
 
 	// PodTemplate holds pod specific configuration
 	PodTemplate PodTemplate `json:"podTemplate,omitempty"`
+
+	// Artifacts is a list of artifacts to provide to the Pipeline's Tasks.
+	Artifacts []ArtifactInstanceEmbedding `json:"artifacts,omitEmpty"`
 }
 
 // PipelineRunSpecStatus defines the pipelinerun spec status the user can provide

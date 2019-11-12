@@ -60,6 +60,10 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&PipelineRunList{},
 		&PipelineResource{},
 		&PipelineResourceList{},
+		&ArtifactType{},
+		&ArtifactTypeList{},
+		&ArtifactInstance{},
+		&ArtifactInstanceList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

@@ -50,6 +50,13 @@ func ApplyParameters(spec *v1alpha1.TaskSpec, tr *v1alpha1.TaskRun, defaults ...
 		}
 	}
 
+	for _, a := range tr.Spec.Artifacts {
+		for _, p := range a.Params {
+			stringReplacements[fmt.Sprintf("artifacts.%s.params.%s", a.Name, p.Name)] = p.Value
+		}
+		stringReplacements[fmt.Sprintf("artifacts.%s.name", a.Name)] = a.Name
+	}
+
 	return ApplyReplacements(spec, stringReplacements, arrayReplacements)
 }
 

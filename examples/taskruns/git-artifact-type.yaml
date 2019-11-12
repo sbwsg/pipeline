@@ -1,0 +1,24 @@
+apiVersion: tekton.dev/v1alpha1
+kind: TaskRun
+metadata:
+  generateName: git-artifact-type-
+spec:
+  artifacts:
+  - name: my-clone
+    params:
+    - name: url
+      value: https://github.com/tektoncd/pipeline.git
+    - name: dir
+      value: /workspace/my-clone
+  taskSpec:
+    artifacts:
+    - name: my-clone
+      type: simple-git
+      mode: ro
+    steps:
+    - name: cat-file
+      image: alpine
+      workingDir: /workspace
+      script: |
+        #!/usr/bin/env sh
+        cat $(artifacts.my-clone.params.dir)/README.md

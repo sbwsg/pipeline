@@ -28,6 +28,14 @@ type FakeTektonV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakeTektonV1alpha1) ArtifactInstances(namespace string) v1alpha1.ArtifactInstanceInterface {
+	return &FakeArtifactInstances{c, namespace}
+}
+
+func (c *FakeTektonV1alpha1) ArtifactTypes(namespace string) v1alpha1.ArtifactTypeInterface {
+	return &FakeArtifactTypes{c, namespace}
+}
+
 func (c *FakeTektonV1alpha1) ClusterTasks() v1alpha1.ClusterTaskInterface {
 	return &FakeClusterTasks{c}
 }

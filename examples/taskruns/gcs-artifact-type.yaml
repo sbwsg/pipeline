@@ -1,0 +1,28 @@
+apiVersion: tekton.dev/v1alpha1
+kind: TaskRun
+metadata:
+  generateName: gcs-artifact-type-
+spec:
+  serviceAccountName: hebridean-sun-assets-uploader
+  artifacts:
+  - name: upload-results
+    params:
+    - name: path
+      value: /workspace/test-results.txt
+    - name: url
+      value: gs://hebridean-sun-assets/example-test-results/test-results.txt
+  taskSpec:
+    artifacts:
+    - name: upload-results
+      type: simple-gcs
+      mode: rw
+    steps:
+    - name: create-tests
+      image: alpine
+      workingDir: /workspace
+      script: |
+        #!/usr/bin/env sh
+        set -e
+        set -x
+        echo "$(date)" > /workspace/test-results.txt
+        # exit 1 # simulate test failure.

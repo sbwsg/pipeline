@@ -481,3 +481,37 @@ func TestBuild_Invalid(t *testing.T) {
 		})
 	}
 }
+
+func TestArtifactsFrom(t *testing.T) {
+	t.Run("a task with artifacts from a prior task", func(t *testing.T) {
+		a := v1alpha1.PipelineTask{Name: "a"}
+		b := v1alpha1.PipelineTask{
+			Name: "b",
+			Artifacts: []v1alpha1.PipelineArtifact{{
+				From: "a.artifacts.foobar",
+			}},
+		}
+
+		p := &v1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "pipeline"},
+			Spec: v1alpha1.PipelineSpec{
+				Tasks: []v1alpha1.PipelineTask{a, b},
+			},
+		}
+		nodeA := &dag.Node{Task: a}
+		nodeB := &dag.Node{Task: b}
+		nodeA.Next = append(nodeA.Next, nodeB)
+		nodeB.Prev = append(nodeB.Prev, nodeA)
+		expectedDAG := &dag.Graph{
+			Nodes: map[string]*dag.Node{
+				"a": nodeA,
+				"b": nodeB,
+			},
+		}
+		g, err := dag.Build(v1alpha1.PipelineTaskList(p.Spec.Tasks))
+		if err != nil {
+			t.Fatalf("didn't expect error creating valid Pipeline %v but got %v", p, err)
+		}
+		assertSameDAG(t, expectedDAG, g)
+	})
+}

@@ -27,6 +27,8 @@ import (
 
 type TektonV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	ArtifactInstancesGetter
+	ArtifactTypesGetter
 	ClusterTasksGetter
 	ConditionsGetter
 	PipelinesGetter
@@ -39,6 +41,14 @@ type TektonV1alpha1Interface interface {
 // TektonV1alpha1Client is used to interact with features provided by the tekton.dev group.
 type TektonV1alpha1Client struct {
 	restClient rest.Interface
+}
+
+func (c *TektonV1alpha1Client) ArtifactInstances(namespace string) ArtifactInstanceInterface {
+	return newArtifactInstances(c, namespace)
+}
+
+func (c *TektonV1alpha1Client) ArtifactTypes(namespace string) ArtifactTypeInterface {
+	return newArtifactTypes(c, namespace)
 }
 
 func (c *TektonV1alpha1Client) ClusterTasks() ClusterTaskInterface {

@@ -1,0 +1,80 @@
+apiVersion: tekton.dev/v1alpha1
+kind: Task
+metadata:
+  name: build-binary
+spec:
+  artifacts:
+    - name: source
+      type: simple-git
+      mode: ro
+    - name: built-binary
+      type: fileset
+      mode: create
+  steps:
+    - name: run-build
+      image: golang:1.13.4-alpine3.10
+      workingDir: $(artifacts.source.params.path)
+      script: |
+        #!/usr/bin/env sh
+        set -e
+        set -x
+        go build -o /tmp/binary ./cmd/controller
+        # TODO: write fileset create-mode results to /dev/termination-log
+---
+apiVersion: tekton.dev/v1alpha1
+kind: Task
+metadata:
+  name: upload-binary-to-gcs
+spec:
+  params:
+    - name: gcs-url
+      type: string
+  artifacts:
+    - name: binary-to-upload
+      type: fileset
+      mode: ro
+    - name: gcs-object
+      type: simple-gcs
+      mode: create
+  steps:
+    - name: push-to-bucket
+      image: google-sdk-image # todo
+      script: |
+        #!/usr/bin/env sh
+        gsutil cp $(artifacts.binary-to-upload.params.path) $(params.gcs-url)
+        # TODO: write gcs create-mode results to /dev/termination-log
+---
+apiVersion: tekton.dev/v1alpha1
+kind: Pipeline
+metadata:
+  name: artifact-sketch-pipeline
+spec:
+  artifacts:
+    - name: my-project-git-repo
+      type: simple-git
+  tasks:
+    - name: build-from-source
+      taskRef:
+        name: build-binary
+      artifacts:
+        - name: source
+          from: artifacts.my-project-git-repo
+    - name: upload-built-binary
+      taskRef:
+        name: upload-binary-to-gcs
+      artifacts:
+        - name: binary-to-upload
+          from: tasks.build-from-source.artifacts.built-binary
+---
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineRun
+metadata:
+  generateName: artifact-sketch-
+spec:
+  pipelineRef:
+    name: artifact-sketch-pipeline
+  artifacts:
+    - name: my-project-git-repo
+      params:
+        - name: url
+          value: https://github.com/tektoncd/pipeline.git

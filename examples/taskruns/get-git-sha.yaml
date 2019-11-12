@@ -1,0 +1,35 @@
+apiVersion: tekton.dev/v1alpha1
+kind: TaskRun
+metadata:
+  generateName: get-git-sha-
+spec:
+  inputs:
+    params:
+      - name: repoURL
+        value: "https://github.com/tektoncd/pipeline"
+      - name: ref
+        value: "master"
+  taskSpec:
+    inputs:
+      params:
+      - name: repoURL
+        type: string
+      - name: ref
+        type: string
+    artifacts:
+    - name: generated-git-artifact
+      type: simple-git
+      mode: create # this task must adhere to the simple-git create mode contract
+    steps:
+    - name: create-git-artifact
+      image: alpine/git
+      script: |
+        #!/usr/bin/env sh
+        set -e
+        set -x
+        git clone $(inputs.params.repoURL) /tmp/repo
+        cd /tmp/repo
+        git checkout $(inputs.params.ref)
+        GIT_SHA=$(git rev-parse HEAD)
+        RESULTS="[{ \"key\": \"generated-git-artifact.url\", \"value\": \"$(inputs.params.repoURL)\" }, { \"name\": \"generated-git-artifact.ref\", \"value\": \"$GIT_SHA\" }]"
+        echo "$RESULTS" > /dev/termination-log

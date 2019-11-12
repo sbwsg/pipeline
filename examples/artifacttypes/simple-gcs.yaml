@@ -1,0 +1,89 @@
+apiVersion: tekton.dev/v1alpha1
+kind: ArtifactType
+metadata:
+  name: simple-gcs
+spec:
+  readOnlyMode:
+    description: In read-only mode, the referenced GCS bucket or object is fetched to the given location on disk.
+    params:
+    - name: url
+      description: "The gs:// url to fetch from."
+    - name: path
+      description: "The path on disk to download to."
+    results:
+    - name: "path"
+      description: "The path that objects from GCS were downloaded to."
+    - name: "readURL"
+      description: "The URL read from GCS."
+    - name: "readGeneration"
+      description: "The generation number of the object read from GCS. Blank if no such object exists in GCS or there was an error reading."
+    - name: "readMD5"
+      description: "The md5 hash of the object read from GCS. Blank if no such object exists in GCS or there was an error reading."
+    preRunSteps:
+    - name: simple-gcs-fetch-objects
+      image: gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
+      script: |
+        #!/usr/bin/env bash
+        set -e
+        set -x
+        gsutil cp $(params.url) $(params.path)
+        if [[ $? -eq 0 ]]; then
+          gsutil cp $(params.url) $(params.path)
+          STAT=$(gsutil stat "$(params.url)")
+          GENERATION=$(echo "$STAT" | sed -rn "s/.*Generation\s*:\s+([0-9]+).*/\1/p")
+          HASH=$(echo "$STAT" | sed -rn "s/.*Hash \(md5\)\s*:\s*([^[:space:]]+).*/\1/p")
+          RESULTS="[{ \"key\": \"$(name).path\", \"value\": \"$(params.path)\" }, { \"key\": \"$(name).readURL\", \"value\": \"$(params.url)\" }, { \"key\": \"$(name).readGeneration\", \"value\": \"$GENERATION\" }, { \"key\": \"$(name).readMD5\", \"value\": \"$HASH\" }]"
+          echo "$RESULTS" > /dev/termination-log
+        fi
+  readWriteMode:
+    description: foo
+    params:
+    - name: url
+      description: "The gs:// url to fetch from."
+    - name: path
+      description: "The path on disk to download to."
+    results:
+    - name: "path"
+      description: "The path that objects from GCS were downloaded to."
+    - name: "readURL"
+      description: "The URL read from GCS."
+    - name: "readGeneration"
+      description: "The generation number of the object read from GCS. Blank if no such object exists in GCS or there was an error reading."
+    - name: "readMD5"
+      description: "The md5 hash of the object read from GCS. Blank if no such object exists in GCS or there was an error reading."
+    - name: "writtenURL"
+      description: "The GCS URL written to."
+    - name: "writtenGeneration"
+      description: "The generation number of the object written back to GCS. Blank if there was an error writing to GCS."
+    - name: "writtenMD5"
+      description: "The md5 hash of the object written back to GCS. Blank if there was an error writing to GCS."
+    preRunSteps:
+    - name: simple-gcs-fetch-objects
+      image: gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
+      script: |
+        #!/usr/bin/env bash
+        set -e
+        set -x
+        gsutil -q stat $(params.url)
+        if [[ $? -eq 0 ]]; then
+          gsutil cp $(params.url) $(params.path)
+          STAT=$(gsutil stat "$(params.url)")
+          GENERATION=$(echo "$STAT" | sed -rn "s/.*Generation\s*:\s+([0-9]+).*/\1/p")
+          HASH=$(echo "$STAT" | sed -rn "s/.*Hash \(md5\)\s*:\s*([^[:space:]]+).*/\1/p")
+          RESULTS="[{ \"key\": \"$(name).path\", \"value\": \"$(params.path)\" }, { \"key\": \"$(name).readURL\", \"value\": \"$(params.url)\" }, { \"key\": \"$(name).readGeneration\", \"value\": \"$GENERATION\" }, { \"key\": \"$(name).readMD5\", \"value\": \"$HASH\" }]"
+          echo "$RESULTS" > /dev/termination-log
+        fi
+    postRunSteps:
+    - name: simple-gcs-write-objects
+      image: gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
+      errorStrategy: IgnorePriorStepErrors
+      script: |
+        #!/usr/bin/env bash
+        set -e
+        set -x
+        gsutil cp $(params.path) $(params.url)
+        STAT=$(gsutil stat "$(params.url)")
+        GENERATION=$(echo "$STAT" | sed -rn "s/.*Generation\s*:\s+([0-9]+).*/\1/p")
+        HASH=$(echo "$STAT" | sed -rn "s/.*Hash \(md5\)\s*:\s*([^[:space:]]+).*/\1/p")
+        RESULTS="[{ \"key\": \"$(name).writtenURL\", \"value\": \"$(params.url)\" }, { \"key\": \"$(name).writtenGeneration\", \"value\": \"$GENERATION\" }, {\"key\": \"$(name).writtenMD5\", \"value\": \"$HASH\"}]"
+        echo "$RESULTS" > /dev/termination-log

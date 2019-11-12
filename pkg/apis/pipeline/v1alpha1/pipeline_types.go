@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"strings"
+
 	"github.com/tektoncd/pipeline/pkg/reconciler/pipeline/dag"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -31,6 +33,13 @@ type PipelineSpec struct {
 	// Params declares a list of input parameters that must be supplied when
 	// this Pipeline is run.
 	Params []ParamSpec `json:"params,omitempty"`
+	// Artifacts that this pipeline expects to be provided by a PipelineRun.
+	Artifacts []PipelineArtifactRequest
+}
+
+type PipelineArtifactRequest struct {
+	Name string
+	Type string
 }
 
 // PipelineStatus does not contain anything because Pipelines on their own
@@ -112,6 +121,20 @@ type PipelineTask struct {
 	// Parameters declares parameters passed to this task.
 	// +optional
 	Params []Param `json:"params,omitempty"`
+
+	// TODO: What is this for?
+	// +optional
+	Artifacts []PipelineTaskArtifact `json:"artifacts,omitempty"`
+}
+
+// Maps an artifact requested by a task to an artifact described in the pipeline's artifacts
+// list or an artifact created/written by a prior task.
+type PipelineTaskArtifact struct {
+	// The name that this artifact has in the task.
+	Name string `json:"name"`
+	// Either `artifacts.artifact-name` for an artifact from the pipeline's artifacts list
+	// or `tasks.task-name.artifacts.artifact-name` for an artifact from a previous task.
+	From string `json:"from,omitempty"`
 }
 
 func (pt PipelineTask) HashKey() string {
@@ -124,6 +147,18 @@ func (pt PipelineTask) Deps() []string {
 	if pt.Resources != nil {
 		for _, rd := range pt.Resources.Inputs {
 			deps = append(deps, rd.From...)
+		}
+	}
+	if pt.Artifacts != nil {
+		for _, artifact := range pt.Artifacts {
+			parts := strings.Split(artifact.From, ".")
+			for i := range parts {
+				parts[i] = strings.TrimSpace(parts[i])
+			}
+			topLevelSection := parts[0]
+			if topLevelSection == "tasks" {
+				deps = append(deps, parts[1])
+			}
 		}
 	}
 	return deps

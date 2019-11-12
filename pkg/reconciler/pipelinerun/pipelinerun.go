@@ -72,6 +72,8 @@ const (
 	// ReasonInvalidGraph indicates that the reason for the failure status is that the
 	// associated Pipeline is an invalid graph (a.k.a wrong order, cycle, …)
 	ReasonInvalidGraph = "PipelineInvalidGraph"
+	// TODO
+	ReasonArtifactsBorked = "ArtifactsBorked"
 	// pipelineRunAgentName defines logging agent name for PipelineRun Controller
 	pipelineRunAgentName = "pipeline-controller"
 	// pipelineRunControllerName defines name for PipelineRun Controller
@@ -91,17 +93,19 @@ type configStore interface {
 type Reconciler struct {
 	*reconciler.Base
 	// listers index properties about resources
-	pipelineRunLister listers.PipelineRunLister
-	pipelineLister    listers.PipelineLister
-	taskRunLister     listers.TaskRunLister
-	taskLister        listers.TaskLister
-	clusterTaskLister listers.ClusterTaskLister
-	resourceLister    listers.PipelineResourceLister
-	conditionLister   listers.ConditionLister
-	tracker           tracker.Interface
-	configStore       configStore
-	timeoutHandler    *reconciler.TimeoutSet
-	metrics           *Recorder
+	pipelineRunLister      listers.PipelineRunLister
+	pipelineLister         listers.PipelineLister
+	taskRunLister          listers.TaskRunLister
+	taskLister             listers.TaskLister
+	clusterTaskLister      listers.ClusterTaskLister
+	resourceLister         listers.PipelineResourceLister
+	artifactTypeLister     listers.ArtifactTypeLister
+	artifactInstanceLister listers.ArtifactInstanceLister
+	conditionLister        listers.ConditionLister
+	tracker                tracker.Interface
+	configStore            configStore
+	timeoutHandler         *reconciler.TimeoutSet
+	metrics                *Recorder
 }
 
 var (
@@ -313,6 +317,8 @@ func (c *Reconciler) reconcile(ctx context.Context, pr *v1alpha1.PipelineRun) er
 		return nil
 	}
 
+	// TODO: Need to get providedArtifacts, which is a slice of v1alpha1.ArtifactInstance
+
 	// Ensure that the parameters from the PipelineRun are overriding Pipeline parameters with the same type.
 	// Weird substitution issues can occur if this is not validated (ApplyParameters() does not verify type).
 	err = resources.ValidateParamTypesMatching(pipelineSpec, pr)
@@ -323,6 +329,18 @@ func (c *Reconciler) reconcile(ctx context.Context, pr *v1alpha1.PipelineRun) er
 			Status: corev1.ConditionFalse,
 			Reason: ReasonParameterTypeMismatch,
 			Message: fmt.Sprintf("PipelineRun %s parameters have mismatching types with Pipeline %s's parameters: %s",
+				fmt.Sprintf("%s/%s", pr.Namespace, pr.Name), fmt.Sprintf("%s/%s", pr.Namespace, pr.Spec.PipelineRef.Name), err),
+		})
+		return nil
+	}
+
+	if err := artifacts.ProcessPipeline(pipelineSpec, pr); err != nil {
+		c.Logger.Errorf("FAILED TO PROCESS ARTIFACTS IN PIPELINE: %v", err)
+		pr.Status.SetCondition(&apis.Condition{
+			Type:   apis.ConditionSucceeded,
+			Status: corev1.ConditionFalse,
+			Reason: ReasonArtifactsBorked,
+			Message: fmt.Sprintf("PipelineRun %s Pipeline %s Artifacts Borked: %v",
 				fmt.Sprintf("%s/%s", pr.Namespace, pr.Name), fmt.Sprintf("%s/%s", pr.Namespace, pr.Spec.PipelineRef.Name), err),
 		})
 		return nil
@@ -533,6 +551,13 @@ func (c *Reconciler) createTaskRun(rprt *resources.ResolvedPipelineRunTask, pr *
 		return c.PipelineClientSet.TektonV1alpha1().TaskRuns(pr.Namespace).UpdateStatus(tr)
 	}
 
+	arts := make([]v1alpha1.ArtifactInstanceEmbedding, 0)
+	for i := range rprt.ResolvedTaskArtifacts.Artifacts {
+		artifact := rprt.ResolvedTaskArtifacts.Artifacts[i]
+		artifact.Instance.Name = artifact.NameInTask
+		arts = append(arts, artifact.Instance)
+	}
+
 	tr = &v1alpha1.TaskRun{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            rprt.TaskRunName,
@@ -552,6 +577,7 @@ func (c *Reconciler) createTaskRun(rprt *resources.ResolvedPipelineRunTask, pr *
 			ServiceAccountName: pr.GetServiceAccountName(rprt.PipelineTask.Name),
 			Timeout:            getTaskRunTimeout(pr),
 			PodTemplate:        pr.Spec.PodTemplate,
+			Artifacts:          arts,
 		}}
 
 	resources.WrapSteps(&tr.Spec, rprt.PipelineTask, rprt.ResolvedTaskResources.Inputs, rprt.ResolvedTaskResources.Outputs, storageBasePath)
