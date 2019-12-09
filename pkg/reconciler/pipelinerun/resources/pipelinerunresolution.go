@@ -18,7 +18,6 @@ package resources
 
 import (
 	"fmt"
-	"log"
 	"reflect"
 	"strings"
 
@@ -283,7 +282,7 @@ func ResolvePipelineRun(
 		}
 
 		// Somewhere between here and the other place, the cat-file-1 status is updating
-		rpta, err := ResolvePipelineTaskArtifacts(pipelineRun, pt, &spec, t.TaskMetadata().Name, taskRun, getArtifactType, state)
+		rpta, err := ResolvePipelineTaskArtifacts(pipelineRun, pt, &spec, t.TaskMetadata().Name, taskRun, getArtifactType, getTaskRun, state)
 		if err != nil {
 			return nil, fmt.Errorf("ARTIFACT ERROR: %w", err)
 		}
@@ -301,7 +300,6 @@ func ResolvePipelineRun(
 		// Add this task to the state of the PipelineRun
 		state = append(state, &rprt)
 	}
-	log.Printf("THE STATE I AM RETURNING IS THIS: %+v", state)
 	return state, nil
 }
 
@@ -489,13 +487,14 @@ func ResolvePipelineTaskResources(pt v1alpha1.PipelineTask, ts *v1alpha1.TaskSpe
 	return &rtr, nil
 }
 
-func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.PipelineTask, ts *v1alpha1.TaskSpec, taskName string, taskRun *v1alpha1.TaskRun, getArtifactType GetArtifactType, state PipelineRunState) (ResolvedPipelineTaskArtifacts, error) {
+func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.PipelineTask, ts *v1alpha1.TaskSpec, taskName string, taskRun *v1alpha1.TaskRun, getArtifactType GetArtifactType, getTaskRun resources.GetTaskRun, state PipelineRunState) (ResolvedPipelineTaskArtifacts, error) {
 	rpta := ResolvedPipelineTaskArtifacts{
 		TaskName: taskName,
 		TaskSpec: ts,
 	}
-	log.Printf("I AM RESOLVING PIPELINE TASK ARTIFACTS FOR PIPELINE TASK %q", pt.Name)
 	for _, a := range ts.Artifacts {
+		// a task can only mark an artifact as "from" another if that task declares it as a RO or RW artifact.
+		// create-mode artifacts are just the task writing out some data in the correct shape.
 		if a.Mode == "ro" || a.Mode == "rw" {
 			for _, pta := range pt.Artifacts {
 				if pta.Name == a.Name {
@@ -504,7 +503,6 @@ func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.
 						parts[i] = strings.TrimSpace(parts[i])
 					}
 					if len(parts) == 0 {
-						log.Printf("BAD: RECEIVED FROM DECLARATION WITH NO PARTS")
 						break
 					}
 					if parts[0] == "artifacts" { // artifacts.artifactName
@@ -539,28 +537,11 @@ func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.
 							Name: pta.Name,
 						}
 
-						log.Printf("PIPELINE TASK NAME: %s", pipelineTaskName)
-						log.Printf("TRSTATUSES: %v", pipelineRun.Status.TaskRuns)
 						if len(pipelineRun.Status.TaskRuns) == 0 {
 							return rpta, nil // no taskruns have executed yet, no resource results available
 						}
-						log.Printf("REQUIRED PARAM NAMES %+v", requiredParamNames)
-						for _, trStatus := range pipelineRun.Status.TaskRuns {
-							log.Printf("SUCCESSFUL NAMES: %v", state.SuccessfulPipelineTaskNames())
-							log.Printf("TR STATUS %q: %+v", trStatus.PipelineTaskName, *trStatus)
-							log.Printf("IS UNKNOWN? %t", trStatus.Status.GetCondition(apis.ConditionSucceeded).IsUnknown())
-							log.Printf("IS SUCCEEDED? %t", trStatus.Status.GetCondition(apis.ConditionSucceeded).IsTrue())
-							log.Printf("trStatus.PipelineTaskName %q, pipelineTaskName %q", trStatus.PipelineTaskName, pipelineTaskName)
-
+						for trName, trStatus := range pipelineRun.Status.TaskRuns {
 							if trStatus.PipelineTaskName == pipelineTaskName {
-								// This check is not trustworthy - it will detect a taskrun as still unknown
-								// even when SuccessfulPipelineTaskNames() will return that the same taskrun
-								// is succeeded.
-								//
-								// if trStatus.Status.GetCondition(apis.ConditionSucceeded).IsUnknown() {
-								// 	return rpta, nil // taskrun hasnt executed yet, so ignore
-								// }
-
 								successfulTaskNames := state.SuccessfulPipelineTaskNames()
 								found := false
 								for _, n := range successfulTaskNames {
@@ -570,17 +551,15 @@ func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.
 								}
 
 								if !found {
-									return rpta, nil // taskrun hasnt executed yet, so ignore
+									return rpta, nil // taskrun hasnt completed yet, so ignore
 								}
-								log.Printf("TR STATUS RESOURSE RESULTS: %+v", trStatus.Status.ResourcesResult)
-								for _, result := range trStatus.Status.ResourcesResult {
-									// Need a complete list of artifact type's params
-									// Then need to search the resource results for
-									// values to populate all of those params (will have Key of `artifactName.paramName`)
-									// Then finally compile those together into an
-									// ArtifactEmbeddedInstance and assign them to
-									// the rpta.Artifacts. Any missing params should be considered
-									// a total failure for now.
+
+								updatedTaskRun, err := getTaskRun(trName)
+								if err != nil {
+									return rpta, fmt.Errorf("unable to fetch updated taskrun %q: %v", trName, err)
+								}
+
+								for _, result := range updatedTaskRun.Status.ResourcesResult {
 									if _, ok := requiredParamNames[result.Key]; ok {
 										requiredParamValues[result.Key] = result.Value
 									}
@@ -605,21 +584,11 @@ func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.
 							NameInTask:     pta.Name,
 							Instance:       artifact,
 						})
-
-						// pipelineRun.Status.TaskRuns
-						// TODO: extricate artifact from taskrun resource results
-						// taskRun.Status.ResourcesResult <- this is where resource results live
-						// need to get the TaskRun attached to the taskName
-						// actually maybe you can get it off pipelineRun.Status.TaskRuns[priorTaskRun.Name].Status.ResourceResults
-						//
-						// getting a taskrun's name:
-						// TaskRunName:  getTaskRunName(pipelineRun.Status.TaskRuns, pt.Name, pipelineRun.Name),
 					}
 				}
 			}
 		}
 	}
-	log.Printf("RPTA ARTIFACTS: %+v", rpta.Artifacts)
 	return rpta, nil
 }
 
