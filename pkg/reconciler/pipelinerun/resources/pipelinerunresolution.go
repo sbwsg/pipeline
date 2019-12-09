@@ -223,6 +223,8 @@ func (e *ConditionNotFoundError) Error() string {
 	return fmt.Sprintf("Couldn't retrieve Condition %q: %s", e.Name, e.Msg)
 }
 
+type GetArtifactType func(string) (*v1alpha1.ArtifactType, error)
+
 // ResolvePipelineRun retrieves all Tasks instances which are reference by tasks, getting
 // instances from getTask. If it is unable to retrieve an instance of a referenced Task, it
 // will return an error, otherwise it returns a list of all of the Tasks retrieved.
@@ -233,6 +235,7 @@ func ResolvePipelineRun(
 	getTaskRun resources.GetTaskRun,
 	getClusterTask resources.GetClusterTask,
 	getCondition GetCondition,
+	getArtifactType GetArtifactType,
 	tasks []v1alpha1.PipelineTask,
 	providedResources map[string]*v1alpha1.PipelineResource,
 ) (PipelineRunState, error) {
@@ -279,7 +282,8 @@ func ResolvePipelineRun(
 			rprt.TaskRun = taskRun
 		}
 
-		rpta, err := ResolvePipelineTaskArtifacts(pipelineRun, pt, &spec, t.TaskMetadata().Name, taskRun)
+		// Somewhere between here and the other place, the cat-file-1 status is updating
+		rpta, err := ResolvePipelineTaskArtifacts(pipelineRun, pt, &spec, t.TaskMetadata().Name, taskRun, getArtifactType, state)
 		if err != nil {
 			return nil, fmt.Errorf("ARTIFACT ERROR: %w", err)
 		}
@@ -297,6 +301,7 @@ func ResolvePipelineRun(
 		// Add this task to the state of the PipelineRun
 		state = append(state, &rprt)
 	}
+	log.Printf("THE STATE I AM RETURNING IS THIS: %+v", state)
 	return state, nil
 }
 
@@ -484,11 +489,12 @@ func ResolvePipelineTaskResources(pt v1alpha1.PipelineTask, ts *v1alpha1.TaskSpe
 	return &rtr, nil
 }
 
-func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.PipelineTask, ts *v1alpha1.TaskSpec, taskName string, taskRun *v1alpha1.TaskRun) (ResolvedPipelineTaskArtifacts, error) {
+func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.PipelineTask, ts *v1alpha1.TaskSpec, taskName string, taskRun *v1alpha1.TaskRun, getArtifactType GetArtifactType, state PipelineRunState) (ResolvedPipelineTaskArtifacts, error) {
 	rpta := ResolvedPipelineTaskArtifacts{
 		TaskName: taskName,
 		TaskSpec: ts,
 	}
+	log.Printf("I AM RESOLVING PIPELINE TASK ARTIFACTS FOR PIPELINE TASK %q", pt.Name)
 	for _, a := range ts.Artifacts {
 		if a.Mode == "ro" || a.Mode == "rw" {
 			for _, pta := range pt.Artifacts {
@@ -501,7 +507,7 @@ func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.
 						log.Printf("BAD: RECEIVED FROM DECLARATION WITH NO PARTS")
 						break
 					}
-					if parts[0] == "artifacts" {
+					if parts[0] == "artifacts" { // artifacts.artifactName
 						expectedArtifactName := parts[1]
 						for i := range pipelineRun.Spec.Artifacts {
 							if pipelineRun.Spec.Artifacts[i].Name == expectedArtifactName {
@@ -512,13 +518,108 @@ func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.
 								})
 							}
 						}
-					} else if parts[0] == "tasks" {
+					} else if parts[0] == "tasks" { // tasks.pipelineTaskName.artifacts.artifactName
+						pipelineTaskName := parts[1]
+						artifactName := parts[3] // this is the artifact name as used in the task, not the pipeline
+						artifactContract, err := getArtifactTypeContract(getArtifactType, a.Type, a.Mode)
+						if err != nil {
+							return rpta, err
+						}
+
+						requiredParamNames := make(map[string]string, 0)
+						requiredParamValues := make(map[string]string, 0)
+
+						for _, p := range artifactContract.Params {
+							nestedParamName := fmt.Sprintf("%s.%s", artifactName, p.Name)
+							requiredParamNames[nestedParamName] = p.Name
+							requiredParamValues[nestedParamName] = ""
+						}
+
+						artifact := v1alpha1.ArtifactInstanceEmbedding{
+							Name: pta.Name,
+						}
+
+						log.Printf("PIPELINE TASK NAME: %s", pipelineTaskName)
+						log.Printf("TRSTATUSES: %v", pipelineRun.Status.TaskRuns)
+						if len(pipelineRun.Status.TaskRuns) == 0 {
+							return rpta, nil // no taskruns have executed yet, no resource results available
+						}
+						log.Printf("REQUIRED PARAM NAMES %+v", requiredParamNames)
+						for _, trStatus := range pipelineRun.Status.TaskRuns {
+							log.Printf("SUCCESSFUL NAMES: %v", state.SuccessfulPipelineTaskNames())
+							log.Printf("TR STATUS %q: %+v", trStatus.PipelineTaskName, *trStatus)
+							log.Printf("IS UNKNOWN? %t", trStatus.Status.GetCondition(apis.ConditionSucceeded).IsUnknown())
+							log.Printf("IS SUCCEEDED? %t", trStatus.Status.GetCondition(apis.ConditionSucceeded).IsTrue())
+							log.Printf("trStatus.PipelineTaskName %q, pipelineTaskName %q", trStatus.PipelineTaskName, pipelineTaskName)
+
+							if trStatus.PipelineTaskName == pipelineTaskName {
+								// This check is not trustworthy - it will detect a taskrun as still unknown
+								// even when SuccessfulPipelineTaskNames() will return that the same taskrun
+								// is succeeded.
+								//
+								// if trStatus.Status.GetCondition(apis.ConditionSucceeded).IsUnknown() {
+								// 	return rpta, nil // taskrun hasnt executed yet, so ignore
+								// }
+
+								successfulTaskNames := state.SuccessfulPipelineTaskNames()
+								found := false
+								for _, n := range successfulTaskNames {
+									if n == pipelineTaskName {
+										found = true
+									}
+								}
+
+								if !found {
+									return rpta, nil // taskrun hasnt executed yet, so ignore
+								}
+								log.Printf("TR STATUS RESOURSE RESULTS: %+v", trStatus.Status.ResourcesResult)
+								for _, result := range trStatus.Status.ResourcesResult {
+									// Need a complete list of artifact type's params
+									// Then need to search the resource results for
+									// values to populate all of those params (will have Key of `artifactName.paramName`)
+									// Then finally compile those together into an
+									// ArtifactEmbeddedInstance and assign them to
+									// the rpta.Artifacts. Any missing params should be considered
+									// a total failure for now.
+									if _, ok := requiredParamNames[result.Key]; ok {
+										requiredParamValues[result.Key] = result.Value
+									}
+								}
+								break
+							}
+						}
+
+						for nestedParamName, paramValue := range requiredParamValues {
+							if paramValue == "" {
+								return rpta, fmt.Errorf("no value provided for required artifact param %q", nestedParamName)
+							}
+							unnestedName := requiredParamNames[nestedParamName]
+							artifact.Params = append(artifact.Params, v1alpha1.ArtifactInstanceParam{
+								Name:  unnestedName,
+								Value: paramValue,
+							})
+						}
+
+						rpta.Artifacts = append(rpta.Artifacts, ResolvedPipelineTaskArtifact{
+							NameInPipeline: "",
+							NameInTask:     pta.Name,
+							Instance:       artifact,
+						})
+
+						// pipelineRun.Status.TaskRuns
 						// TODO: extricate artifact from taskrun resource results
+						// taskRun.Status.ResourcesResult <- this is where resource results live
+						// need to get the TaskRun attached to the taskName
+						// actually maybe you can get it off pipelineRun.Status.TaskRuns[priorTaskRun.Name].Status.ResourceResults
+						//
+						// getting a taskrun's name:
+						// TaskRunName:  getTaskRunName(pipelineRun.Status.TaskRuns, pt.Name, pipelineRun.Name),
 					}
 				}
 			}
 		}
 	}
+	log.Printf("RPTA ARTIFACTS: %+v", rpta.Artifacts)
 	return rpta, nil
 }
 
@@ -533,4 +634,31 @@ type ResolvedPipelineTaskArtifact struct {
 	NameInPipeline string // The name that the pipeline uses to refer to this artifact
 	NameInTask     string // The name that the task uses to refer to this artifact
 	Instance       v1alpha1.ArtifactInstanceEmbedding
+}
+
+func getArtifactTypeContract(getArtifactType GetArtifactType, typeName string, mode v1alpha1.ArtifactSpecMode) (*v1alpha1.ArtifactContract, error) {
+	artifactType, err := getArtifactType(typeName)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching artifact type %q: %v", artifactType, err)
+	}
+	if artifactType == nil {
+		return nil, fmt.Errorf("artifact type %q doesnt exist", typeName)
+	}
+	var contract *v1alpha1.ArtifactContract
+	switch {
+	case mode == v1alpha1.ArtifactROMode && artifactType.Spec.ReadOnlyMode != nil:
+		contract = &artifactType.Spec.ReadOnlyMode.ArtifactContract
+	case mode == v1alpha1.ArtifactRWMode && artifactType.Spec.ReadWriteMode != nil:
+		contract = &artifactType.Spec.ReadWriteMode.ArtifactContract
+	case mode == v1alpha1.ArtifactCreateMode && artifactType.Spec.CreateMode != nil:
+		contract = artifactType.Spec.CreateMode
+	}
+	if contract == nil {
+		return nil, fmt.Errorf("no artifact contract for type %q with mode %q", typeName, mode)
+	}
+	return &(*contract), nil
+}
+
+func toContract(c *v1alpha1.ArtifactContract) *v1alpha1.ArtifactContract {
+	return &(*c)
 }

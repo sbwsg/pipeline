@@ -8,8 +8,6 @@ spec:
     params:
     - name: url
       description: "The repo url to clone."
-    - name: dir
-      description: "The directory to clone into."
     - name: ref
       description: "The git ref to checkout."
       default: "master"
@@ -23,17 +21,30 @@ spec:
         #!/usr/bin/env sh
         set -e
         set -x
-        git clone $(params.url) $(params.dir)
-        cd $(params.dir)
+        git clone $(params.url) $(name)
+        cd $(name)
         git checkout $(params.ref)
-        echo "[{ \"key\": \"$(name).readSHA\", \"value\": \"$(git rev-parse HEAD)\" }]" > /dev/termination-log
+        cat > /dev/termination-log << TEKTONEOF
+          [
+            {
+              "key": "$(name).readSHA",
+              "value": "$(git rev-parse HEAD)"
+            },
+            {
+              "key": "$(name).url",
+              "value": "$(params.url)"
+            },
+            {
+              "key": "$(name).ref",
+              "value": "$(params.ref)"
+            }
+          ]
+        TEKTONEOF
   readWriteMode:
     description: In read-write mode, clone repo and then push any changes.
     params:
     - name: url
       description: "The repo url to clone."
-    - name: dir
-      description: "The directory to clone into."
     - name: ref
       description: "The git ref to checkout."
       default: "master"
@@ -51,8 +62,8 @@ spec:
         #!/usr/bin/env sh
         set -e
         set -x
-        git clone $(params.url) $(params.dir)
-        cd $(params.dir)
+        git clone $(params.url) $(name)
+        cd $(name)
         git checkout $(params.ref)
         echo "[{ \"key\": \"$(name).readSHA\", \"value\": \"$(git rev-parse HEAD)\" }]" > /dev/termination-log
     postRunSteps:
@@ -62,7 +73,7 @@ spec:
         #!/usr/bin/env sh
         set -e
         set -x
-        cd $(params.dir)
+        cd $(name)
         git add --all
         git commit -m "$(params.commit-message)"
         git push origin

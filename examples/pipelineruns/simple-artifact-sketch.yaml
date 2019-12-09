@@ -18,7 +18,7 @@ spec:
         #!/usr/bin/env sh
         set -e
         set -x
-        cat $(artifacts.source.params.dir)/$(inputs.params.filename)
+        cat /workspace/source/$(inputs.params.filename)
 ---
 apiVersion: tekton.dev/v1alpha1
 kind: Task
@@ -32,7 +32,7 @@ spec:
       - name: needle
         default: foo
   artifacts:
-    - name: source
+    - name: sourcerepo
       type: simple-git
       mode: ro
   steps:
@@ -42,7 +42,7 @@ spec:
         #!/usr/bin/env sh
         set -e
         set -x
-        cat $(artifacts.source.params.dir)/$(inputs.params.haystack) | grep $(inputs.params.needle)
+        cat /workspace/source/$(inputs.params.haystack) | grep $(inputs.params.needle)
 ---
 apiVersion: tekton.dev/v1alpha1
 kind: Pipeline
@@ -71,8 +71,8 @@ spec:
         - name: needle
           value: Tear
       artifacts:
-        - name: source
-          from: artifacts.my-project-git-repo
+        - name: sourcerepo
+          from: tasks.cat-file-1.artifacts.source
 ---
 apiVersion: tekton.dev/v1alpha1
 kind: PipelineRun
