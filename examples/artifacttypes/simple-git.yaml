@@ -24,11 +24,12 @@ spec:
         git clone $(params.url) $(name)
         cd $(name)
         git checkout $(params.ref)
+        GIT_SHA=$(git rev-parse HEAD)
         cat > /dev/termination-log << TEKTONEOF
           [
             {
               "key": "$(name).readSHA",
-              "value": "$(git rev-parse HEAD)"
+              "value": "$GIT_SHA"
             },
             {
               "key": "$(name).url",
@@ -36,7 +37,7 @@ spec:
             },
             {
               "key": "$(name).ref",
-              "value": "$(params.ref)"
+              "value": "$GIT_SHA"
             }
           ]
         TEKTONEOF

@@ -42,7 +42,7 @@ spec:
         #!/usr/bin/env sh
         set -e
         set -x
-        cat /workspace/source/$(inputs.params.haystack) | grep $(inputs.params.needle)
+        cat /workspace/sourcerepo/$(inputs.params.haystack) | grep $(inputs.params.needle)
 ---
 apiVersion: tekton.dev/v1alpha1
 kind: Pipeline
