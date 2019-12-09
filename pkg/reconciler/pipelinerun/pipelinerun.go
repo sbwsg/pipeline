@@ -19,7 +19,6 @@ package pipelinerun
 import (
 	"context"
 	"fmt"
-	"log"
 	"reflect"
 	"time"
 
@@ -370,11 +369,6 @@ func (c *Reconciler) reconcile(ctx context.Context, pr *v1alpha1.PipelineRun) er
 		pipelineSpec.Tasks, providedResources,
 	)
 
-	log.Printf("DIRECTLY AFTER RESOLVE PIPELINE RUN SUCCESSFUL PIPELINE TASK NAMES: %v", pipelineState.SuccessfulPipelineTaskNames())
-
-	log.Printf("PIPELINE STATE HAS BEEN COMPUTED. ERR is %v", err)
-	log.Printf("ARTIFACTS LEN IS %d", len(pipelineState))
-
 	if err != nil {
 		// This Run has failed, so we need to mark it as failed and stop reconciling it
 		switch err := err.(type) {
@@ -406,17 +400,11 @@ func (c *Reconciler) reconcile(ctx context.Context, pr *v1alpha1.PipelineRun) er
 		return nil
 	}
 
-	log.Printf("ERR WAS NOT NIL")
-	log.Printf("PIPELINESTATE IS DONE? %t", pipelineState.IsDone())
-	log.Printf("PR IS DONE? %t", pr.IsDone())
-
 	if pipelineState.IsDone() && pr.IsDone() {
 		c.timeoutHandler.Release(pr)
 		c.Recorder.Event(pr, corev1.EventTypeNormal, eventReasonSucceeded, "PipelineRun completed successfully.")
 		return nil
 	}
-
-	log.Printf("PIPELINESTATE IS NOT DONE")
 
 	for _, rprt := range pipelineState {
 		err := taskrun.ValidateResolvedTaskResources(rprt.PipelineTask.Params, rprt.ResolvedTaskResources)
@@ -433,8 +421,6 @@ func (c *Reconciler) reconcile(ctx context.Context, pr *v1alpha1.PipelineRun) er
 		}
 	}
 
-	log.Printf("VALIDATION OF RESOURCES COMPLETED OK")
-
 	// If the pipelinerun is cancelled, cancel tasks and update status
 	if pr.IsCancelled() {
 		before := pr.Status.GetCondition(apis.ConditionSucceeded)
@@ -444,18 +430,10 @@ func (c *Reconciler) reconcile(ctx context.Context, pr *v1alpha1.PipelineRun) er
 		return err
 	}
 
-	log.Printf("GETTING SCHEDULABLE")
-	log.Printf("SUCCESSFUL PIPELINE TASK NAMES: %v", pipelineState.SuccessfulPipelineTaskNames())
-	// OK I see what is happening.  For some reason cat-file-1 is detected as being in an unknown state
-	// at one moment but then when it reaches this point cat-file-1 is detected as being successful.
-	// Why???
-
 	candidateTasks, err := dag.GetSchedulable(d, pipelineState.SuccessfulPipelineTaskNames()...)
 	if err != nil {
 		c.Logger.Errorf("Error getting potential next tasks for valid pipelinerun %s: %v", pr.Name, err)
 	}
-
-	log.Printf("GOT CANDIDATE TASKS. LEN IS %d", len(candidateTasks))
 
 	rprts := pipelineState.GetNextTasks(candidateTasks)
 
@@ -466,24 +444,17 @@ func (c *Reconciler) reconcile(ctx context.Context, pr *v1alpha1.PipelineRun) er
 		return err
 	}
 
-	log.Printf("OK I AM ABOUT TO MAYBE CREATE A TASK RUN. EXCITING!")
-
-	log.Printf("THE LEN OF RPRTs IS %d", len(rprts))
-
 	for _, rprt := range rprts {
-		log.Printf("IS RPRT NIL ? %t", rprt == nil)
 		if rprt == nil {
 			continue
 		}
 		if rprt.ResolvedConditionChecks == nil || rprt.ResolvedConditionChecks.IsSuccess() {
-			log.Printf("BRANCH A")
 			rprt.TaskRun, err = c.createTaskRun(rprt, pr, as.StorageBasePath(pr))
 			if err != nil {
 				c.Recorder.Eventf(pr, corev1.EventTypeWarning, "TaskRunCreationFailed", "Failed to create TaskRun %q: %v", rprt.TaskRunName, err)
 				return xerrors.Errorf("error creating TaskRun called %s for PipelineTask %s from PipelineRun %s: %w", rprt.TaskRunName, rprt.PipelineTask.Name, pr.Name, err)
 			}
 		} else if !rprt.ResolvedConditionChecks.HasStarted() {
-			log.Printf("BRANCH B")
 			for _, rcc := range rprt.ResolvedConditionChecks {
 				rcc.ConditionCheck, err = c.makeConditionCheckContainer(rprt, rcc, pr)
 				if err != nil {
@@ -571,7 +542,6 @@ func (c *Reconciler) updateTaskRunsStatusDirectly(pr *v1alpha1.PipelineRun) erro
 }
 
 func (c *Reconciler) createTaskRun(rprt *resources.ResolvedPipelineRunTask, pr *v1alpha1.PipelineRun, storageBasePath string) (*v1alpha1.TaskRun, error) {
-	log.Printf("CREATE TASK RUN IS RUNNING SO RUN NOW CREATE TASK RUN RUN RUN RUN")
 	tr, _ := c.taskRunLister.TaskRuns(pr.Namespace).Get(rprt.TaskRunName)
 	if tr != nil {
 		//is a retry
@@ -590,8 +560,6 @@ func (c *Reconciler) createTaskRun(rprt *resources.ResolvedPipelineRunTask, pr *
 		artifact.Instance.Name = artifact.NameInTask
 		arts = append(arts, artifact.Instance)
 	}
-	log.Printf("HERE IS THE RPRT: %+v", rprt)
-	log.Printf("HERE ARE THE ARTIFACTS I RECEIVED FOR RUNNING %q: %+v", rprt.TaskRunName, arts)
 
 	tr = &v1alpha1.TaskRun{
 		ObjectMeta: metav1.ObjectMeta{
