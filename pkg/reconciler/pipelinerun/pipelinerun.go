@@ -363,8 +363,8 @@ func (c *Reconciler) reconcile(ctx context.Context, pr *v1alpha1.PipelineRun) er
 		func(name string) (*v1alpha1.Condition, error) {
 			return c.conditionLister.Conditions(pr.Namespace).Get(name)
 		},
-		func(name string) (*v1alpha1.ArtifactType, error) {
-			return c.artifactTypeLister.ArtifactTypes(pr.Namespace).Get(name)
+		func(name string) (*v1alpha1.Plugin, error) {
+			return c.pluginLister.Plugins(pr.Namespace).Get(name)
 		},
 		pipelineSpec.Tasks, providedResources,
 	)
@@ -554,7 +554,7 @@ func (c *Reconciler) createTaskRun(rprt *resources.ResolvedPipelineRunTask, pr *
 		return c.PipelineClientSet.TektonV1alpha1().TaskRuns(pr.Namespace).UpdateStatus(tr)
 	}
 
-	arts := make([]v1alpha1.ArtifactInstanceEmbedding, 0)
+	arts := make([]v1alpha1.ArtifactEmbedding, 0)
 	for i := range rprt.ResolvedTaskArtifacts.Artifacts {
 		artifact := rprt.ResolvedTaskArtifacts.Artifacts[i]
 		artifact.Instance.Name = artifact.NameInTask

@@ -10,7 +10,7 @@ import (
 	"github.com/tektoncd/pipeline/pkg/names"
 )
 
-func ResolveArtifacts(tr *v1alpha1.TaskRun, ts *v1alpha1.TaskSpec, lister listers.ArtifactTypeLister) error {
+func ResolveArtifacts(tr *v1alpha1.TaskRun, ts *v1alpha1.TaskSpec, lister listers.PluginLister) error {
 	if ts.Artifacts != nil {
 		for _, a := range ts.Artifacts {
 			name := a.Name
@@ -23,7 +23,7 @@ func ResolveArtifacts(tr *v1alpha1.TaskRun, ts *v1alpha1.TaskSpec, lister lister
 				if b.Name != name {
 					continue
 				}
-				artifactType, err := lister.ArtifactTypes(tr.Namespace).Get(typ)
+				artifactType, err := lister.Plugins(tr.Namespace).Get(typ)
 				if err != nil {
 					return xerrors.Errorf("error fetching artifact type %q: %w", typ, err)
 				}
@@ -49,7 +49,7 @@ func ResolveArtifacts(tr *v1alpha1.TaskRun, ts *v1alpha1.TaskSpec, lister lister
 	return nil
 }
 
-func inject(tr *v1alpha1.TaskRun, ts *v1alpha1.TaskSpec, impl *v1alpha1.ArtifactImplementation, artifactInstance *v1alpha1.ArtifactInstanceEmbedding) {
+func inject(tr *v1alpha1.TaskRun, ts *v1alpha1.TaskSpec, impl *v1alpha1.PluginImplementation, artifactInstance *v1alpha1.ArtifactEmbedding) {
 	if len(impl.Sidecars) > 0 {
 		ts.Sidecars = append(ts.Sidecars, impl.Sidecars...)
 	}
@@ -76,7 +76,7 @@ func inject(tr *v1alpha1.TaskRun, ts *v1alpha1.TaskSpec, impl *v1alpha1.Artifact
 
 // Replace $(params.foo) with $(artifacts.artifact-name.params.foo) and also $(name) with $(artifacts.artifact-name.name).
 // Then some later function can do the actual work of replacing the variable with the value.
-func rewriteParams(steps []v1alpha1.Step, impl *v1alpha1.ArtifactImplementation, inst *v1alpha1.ArtifactInstanceEmbedding) {
+func rewriteParams(steps []v1alpha1.Step, impl *v1alpha1.PluginImplementation, inst *v1alpha1.ArtifactEmbedding) {
 	replacements := make(map[string]string)
 	for _, p := range impl.Params {
 		key := "params." + p.Name
@@ -89,11 +89,11 @@ func rewriteParams(steps []v1alpha1.Step, impl *v1alpha1.ArtifactImplementation,
 	}
 }
 
-func getImplementationSupportingMode(spec v1alpha1.ArtifactTypeSpec, desiredMode v1alpha1.ArtifactSpecMode) *v1alpha1.ArtifactImplementation {
+func getImplementationSupportingMode(spec v1alpha1.PluginSpec, desiredMode v1alpha1.PluginSpecMode) *v1alpha1.PluginImplementation {
 	switch {
-	case desiredMode == v1alpha1.ArtifactROMode && spec.ReadOnlyMode != nil:
+	case desiredMode == v1alpha1.PluginROMode && spec.ReadOnlyMode != nil:
 		return spec.ReadOnlyMode
-	case desiredMode == v1alpha1.ArtifactRWMode && spec.ReadWriteMode != nil:
+	case desiredMode == v1alpha1.PluginRWMode && spec.ReadWriteMode != nil:
 		return spec.ReadWriteMode
 	default:
 	}

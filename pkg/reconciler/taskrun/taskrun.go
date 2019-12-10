@@ -64,17 +64,17 @@ type Reconciler struct {
 	*reconciler.Base
 
 	// listers index properties about resources
-	taskRunLister          listers.TaskRunLister
-	taskLister             listers.TaskLister
-	clusterTaskLister      listers.ClusterTaskLister
-	resourceLister         listers.PipelineResourceLister
-	pluginLister           listers.PluginLister
-	artifactInstanceLister listers.ArtifactLister
-	cloudEventClient       cloudevent.CEClient
-	tracker                tracker.Interface
-	cache                  *entrypoint.Cache
-	timeoutHandler         *reconciler.TimeoutSet
-	metrics                *Recorder
+	taskRunLister     listers.TaskRunLister
+	taskLister        listers.TaskLister
+	clusterTaskLister listers.ClusterTaskLister
+	resourceLister    listers.PipelineResourceLister
+	pluginLister      listers.PluginLister
+	artifactLister    listers.ArtifactLister
+	cloudEventClient  cloudevent.CEClient
+	tracker           tracker.Interface
+	cache             *entrypoint.Cache
+	timeoutHandler    *reconciler.TimeoutSet
+	metrics           *Recorder
 }
 
 // Check that our Reconciler implements controller.Reconciler
@@ -288,7 +288,7 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1alpha1.TaskRun) error 
 		return nil
 	}
 
-	if err := artifacts.ResolveArtifacts(tr, taskSpec, c.artifactTypeLister); err != nil {
+	if err := artifacts.ResolveArtifacts(tr, taskSpec, c.pluginLister); err != nil {
 		c.Logger.Errorf("Failed to resolve artifacts for taskrun %s: %v", tr.Name, err)
 		tr.Status.SetCondition(&apis.Condition{
 			Type:    apis.ConditionSucceeded,

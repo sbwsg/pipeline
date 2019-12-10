@@ -487,7 +487,7 @@ func TestArtifactsFrom(t *testing.T) {
 		a := v1alpha1.PipelineTask{Name: "a"}
 		b := v1alpha1.PipelineTask{
 			Name: "b",
-			Artifacts: []v1alpha1.PipelineArtifact{{
+			Artifacts: []v1alpha1.PipelineTaskArtifact{{
 				From: "a.artifacts.foobar",
 			}},
 		}

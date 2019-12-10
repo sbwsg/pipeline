@@ -222,7 +222,7 @@ func (e *ConditionNotFoundError) Error() string {
 	return fmt.Sprintf("Couldn't retrieve Condition %q: %s", e.Name, e.Msg)
 }
 
-type GetArtifactType func(string) (*v1alpha1.ArtifactType, error)
+type GetPlugin func(string) (*v1alpha1.Plugin, error)
 
 // ResolvePipelineRun retrieves all Tasks instances which are reference by tasks, getting
 // instances from getTask. If it is unable to retrieve an instance of a referenced Task, it
@@ -234,7 +234,7 @@ func ResolvePipelineRun(
 	getTaskRun resources.GetTaskRun,
 	getClusterTask resources.GetClusterTask,
 	getCondition GetCondition,
-	getArtifactType GetArtifactType,
+	getPlugin GetPlugin,
 	tasks []v1alpha1.PipelineTask,
 	providedResources map[string]*v1alpha1.PipelineResource,
 ) (PipelineRunState, error) {
@@ -282,7 +282,7 @@ func ResolvePipelineRun(
 		}
 
 		// Somewhere between here and the other place, the cat-file-1 status is updating
-		rpta, err := ResolvePipelineTaskArtifacts(pipelineRun, pt, &spec, t.TaskMetadata().Name, taskRun, getArtifactType, getTaskRun, state)
+		rpta, err := ResolvePipelineTaskArtifacts(pipelineRun, pt, &spec, t.TaskMetadata().Name, taskRun, getPlugin, getTaskRun, state)
 		if err != nil {
 			return nil, fmt.Errorf("ARTIFACT ERROR: %w", err)
 		}
@@ -487,7 +487,7 @@ func ResolvePipelineTaskResources(pt v1alpha1.PipelineTask, ts *v1alpha1.TaskSpe
 	return &rtr, nil
 }
 
-func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.PipelineTask, ts *v1alpha1.TaskSpec, taskName string, taskRun *v1alpha1.TaskRun, getArtifactType GetArtifactType, getTaskRun resources.GetTaskRun, state PipelineRunState) (ResolvedPipelineTaskArtifacts, error) {
+func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.PipelineTask, ts *v1alpha1.TaskSpec, taskName string, taskRun *v1alpha1.TaskRun, getPlugin GetPlugin, getTaskRun resources.GetTaskRun, state PipelineRunState) (ResolvedPipelineTaskArtifacts, error) {
 	rpta := ResolvedPipelineTaskArtifacts{
 		TaskName: taskName,
 		TaskSpec: ts,
@@ -519,7 +519,7 @@ func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.
 					} else if parts[0] == "tasks" { // tasks.pipelineTaskName.artifacts.artifactName
 						pipelineTaskName := parts[1]
 						artifactName := parts[3] // this is the artifact name as used in the task, not the pipeline
-						artifactContract, err := getArtifactTypeContract(getArtifactType, a.Type, a.Mode)
+						artifactContract, err := getArtifactContract(getPlugin, a.Type, a.Mode)
 						if err != nil {
 							return rpta, err
 						}
@@ -533,7 +533,7 @@ func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.
 							requiredParamValues[nestedParamName] = ""
 						}
 
-						artifact := v1alpha1.ArtifactInstanceEmbedding{
+						artifact := v1alpha1.ArtifactEmbedding{
 							Name: pta.Name,
 						}
 
@@ -573,7 +573,7 @@ func ResolvePipelineTaskArtifacts(pipelineRun v1alpha1.PipelineRun, pt v1alpha1.
 								return rpta, fmt.Errorf("no value provided for required artifact param %q", nestedParamName)
 							}
 							unnestedName := requiredParamNames[nestedParamName]
-							artifact.Params = append(artifact.Params, v1alpha1.ArtifactInstanceParam{
+							artifact.Params = append(artifact.Params, v1alpha1.ArtifactParam{
 								Name:  unnestedName,
 								Value: paramValue,
 							})
@@ -602,25 +602,25 @@ type ResolvedPipelineTaskArtifacts struct {
 type ResolvedPipelineTaskArtifact struct {
 	NameInPipeline string // The name that the pipeline uses to refer to this artifact
 	NameInTask     string // The name that the task uses to refer to this artifact
-	Instance       v1alpha1.ArtifactInstanceEmbedding
+	Instance       v1alpha1.ArtifactEmbedding
 }
 
-func getArtifactTypeContract(getArtifactType GetArtifactType, typeName string, mode v1alpha1.ArtifactSpecMode) (*v1alpha1.ArtifactContract, error) {
-	artifactType, err := getArtifactType(typeName)
+func getArtifactContract(getPlugin GetPlugin, typeName string, mode v1alpha1.PluginSpecMode) (*v1alpha1.ArtifactContract, error) {
+	plugin, err := getPlugin(typeName)
 	if err != nil {
-		return nil, fmt.Errorf("error fetching artifact type %q: %v", artifactType, err)
+		return nil, fmt.Errorf("error fetching artifact type %q: %v", plugin, err)
 	}
-	if artifactType == nil {
+	if plugin == nil {
 		return nil, fmt.Errorf("artifact type %q doesnt exist", typeName)
 	}
 	var contract *v1alpha1.ArtifactContract
 	switch {
-	case mode == v1alpha1.ArtifactROMode && artifactType.Spec.ReadOnlyMode != nil:
-		contract = &artifactType.Spec.ReadOnlyMode.ArtifactContract
-	case mode == v1alpha1.ArtifactRWMode && artifactType.Spec.ReadWriteMode != nil:
-		contract = &artifactType.Spec.ReadWriteMode.ArtifactContract
-	case mode == v1alpha1.ArtifactCreateMode && artifactType.Spec.CreateMode != nil:
-		contract = artifactType.Spec.CreateMode
+	case mode == v1alpha1.PluginROMode && plugin.Spec.ReadOnlyMode != nil:
+		contract = &plugin.Spec.ReadOnlyMode.ArtifactContract
+	case mode == v1alpha1.PluginRWMode && plugin.Spec.ReadWriteMode != nil:
+		contract = &plugin.Spec.ReadWriteMode.ArtifactContract
+	case mode == v1alpha1.PluginCreateMode && plugin.Spec.CreateMode != nil:
+		contract = plugin.Spec.CreateMode
 	}
 	if contract == nil {
 		return nil, fmt.Errorf("no artifact contract for type %q with mode %q", typeName, mode)

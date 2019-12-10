@@ -95,8 +95,8 @@ func main() {
 		v1alpha1.SchemeGroupVersion.WithKind("TaskRun"):          &v1alpha1.TaskRun{},
 		v1alpha1.SchemeGroupVersion.WithKind("PipelineRun"):      &v1alpha1.PipelineRun{},
 		v1alpha1.SchemeGroupVersion.WithKind("Condition"):        &v1alpha1.Condition{},
-		v1alpha1.SchemeGroupVersion.WithKind("ArtifactType"):     &v1alpha1.ArtifactType{},
-		v1alpha1.SchemeGroupVersion.WithKind("ArtifactInstance"): &v1alpha1.ArtifactInstance{},
+		v1alpha1.SchemeGroupVersion.WithKind("Plugin"):           &v1alpha1.Plugin{},
+		v1alpha1.SchemeGroupVersion.WithKind("Artifact"):         &v1alpha1.Artifact{},
 	}
 
 	resourceAdmissionController := webhook.NewResourceAdmissionController(resourceHandlers, options, true)
