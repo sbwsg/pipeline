@@ -57,7 +57,7 @@ type TaskRunSpec struct {
 	PodTemplate PodTemplate `json:"podTemplate,omitempty"`
 
 	// Artifacts holds the artifacts this TaskRun requires
-	Artifacts []ArtifactInstanceEmbedding `json:"artifacts,omitEmpty"`
+	Artifacts []ArtifactEmbedding `json:"artifacts,omitEmpty"`
 }
 
 // TaskRunSpecStatus defines the taskrun spec status the user can provide

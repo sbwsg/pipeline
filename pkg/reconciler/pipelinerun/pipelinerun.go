@@ -93,19 +93,19 @@ type configStore interface {
 type Reconciler struct {
 	*reconciler.Base
 	// listers index properties about resources
-	pipelineRunLister      listers.PipelineRunLister
-	pipelineLister         listers.PipelineLister
-	taskRunLister          listers.TaskRunLister
-	taskLister             listers.TaskLister
-	clusterTaskLister      listers.ClusterTaskLister
-	resourceLister         listers.PipelineResourceLister
-	artifactTypeLister     listers.ArtifactTypeLister
-	artifactInstanceLister listers.ArtifactInstanceLister
-	conditionLister        listers.ConditionLister
-	tracker                tracker.Interface
-	configStore            configStore
-	timeoutHandler         *reconciler.TimeoutSet
-	metrics                *Recorder
+	pipelineRunLister listers.PipelineRunLister
+	pipelineLister    listers.PipelineLister
+	taskRunLister     listers.TaskRunLister
+	taskLister        listers.TaskLister
+	clusterTaskLister listers.ClusterTaskLister
+	resourceLister    listers.PipelineResourceLister
+	pluginLister      listers.PluginLister
+	artifactLister    listers.ArtifactLister
+	conditionLister   listers.ConditionLister
+	tracker           tracker.Interface
+	configStore       configStore
+	timeoutHandler    *reconciler.TimeoutSet
+	metrics           *Recorder
 }
 
 var (

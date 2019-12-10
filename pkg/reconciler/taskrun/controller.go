@@ -23,10 +23,10 @@ import (
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1alpha1"
 	pipelineclient "github.com/tektoncd/pipeline/pkg/client/injection/client"
-	artifactinstanceinformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/artifactinstance"
-	artifacttypeinformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/artifacttype"
+	artifactinformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/artifact"
 	clustertaskinformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/clustertask"
 	resourceinformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/pipelineresource"
+	plugininformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/plugin"
 	taskinformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/task"
 	taskruninformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/taskrun"
 	"github.com/tektoncd/pipeline/pkg/reconciler"
@@ -55,8 +55,8 @@ func NewController(images pipeline.Images) func(context.Context, configmap.Watch
 		clusterTaskInformer := clustertaskinformer.Get(ctx)
 		podInformer := podinformer.Get(ctx)
 		resourceInformer := resourceinformer.Get(ctx)
-		artifactTypeInformer := artifacttypeinformer.Get(ctx)
-		artifactInstanceInformer := artifactinstanceinformer.Get(ctx)
+		pluginInformer := plugininformer.Get(ctx)
+		artifactInformer := artifactinformer.Get(ctx)
 		timeoutHandler := reconciler.NewTimeoutHandler(ctx.Done(), logger)
 		metrics, err := NewRecorder()
 		if err != nil {
@@ -72,16 +72,16 @@ func NewController(images pipeline.Images) func(context.Context, configmap.Watch
 		}
 
 		c := &Reconciler{
-			Base:                   reconciler.NewBase(opt, taskRunAgentName, images),
-			taskRunLister:          taskRunInformer.Lister(),
-			taskLister:             taskInformer.Lister(),
-			clusterTaskLister:      clusterTaskInformer.Lister(),
-			resourceLister:         resourceInformer.Lister(),
-			artifactTypeLister:     artifactTypeInformer.Lister(),
-			artifactInstanceLister: artifactInstanceInformer.Lister(),
-			timeoutHandler:         timeoutHandler,
-			cloudEventClient:       cloudeventclient.Get(ctx),
-			metrics:                metrics,
+			Base:              reconciler.NewBase(opt, taskRunAgentName, images),
+			taskRunLister:     taskRunInformer.Lister(),
+			taskLister:        taskInformer.Lister(),
+			clusterTaskLister: clusterTaskInformer.Lister(),
+			resourceLister:    resourceInformer.Lister(),
+			pluginLister:      pluginInformer.Lister(),
+			artifactLister:    artifactInformer.Lister(),
+			timeoutHandler:    timeoutHandler,
+			cloudEventClient:  cloudeventclient.Get(ctx),
+			metrics:           metrics,
 		}
 		impl := controller.NewImpl(c, c.Logger, taskRunControllerName)
 

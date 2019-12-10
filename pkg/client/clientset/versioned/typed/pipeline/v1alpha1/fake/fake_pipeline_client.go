@@ -28,12 +28,8 @@ type FakeTektonV1alpha1 struct {
 	*testing.Fake
 }
 
-func (c *FakeTektonV1alpha1) ArtifactInstances(namespace string) v1alpha1.ArtifactInstanceInterface {
-	return &FakeArtifactInstances{c, namespace}
-}
-
-func (c *FakeTektonV1alpha1) ArtifactTypes(namespace string) v1alpha1.ArtifactTypeInterface {
-	return &FakeArtifactTypes{c, namespace}
+func (c *FakeTektonV1alpha1) Artifacts(namespace string) v1alpha1.ArtifactInterface {
+	return &FakeArtifacts{c, namespace}
 }
 
 func (c *FakeTektonV1alpha1) ClusterTasks() v1alpha1.ClusterTaskInterface {
@@ -54,6 +50,10 @@ func (c *FakeTektonV1alpha1) PipelineResources(namespace string) v1alpha1.Pipeli
 
 func (c *FakeTektonV1alpha1) PipelineRuns(namespace string) v1alpha1.PipelineRunInterface {
 	return &FakePipelineRuns{c, namespace}
+}
+
+func (c *FakeTektonV1alpha1) Plugins(namespace string) v1alpha1.PluginInterface {
+	return &FakePlugins{c, namespace}
 }
 
 func (c *FakeTektonV1alpha1) Tasks(namespace string) v1alpha1.TaskInterface {

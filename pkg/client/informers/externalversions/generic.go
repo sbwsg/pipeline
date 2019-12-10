@@ -53,10 +53,8 @@ func (f *genericInformer) Lister() cache.GenericLister {
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
 	// Group=tekton.dev, Version=v1alpha1
-	case v1alpha1.SchemeGroupVersion.WithResource("artifactinstances"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Tekton().V1alpha1().ArtifactInstances().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("artifacttypes"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Tekton().V1alpha1().ArtifactTypes().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("artifacts"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Tekton().V1alpha1().Artifacts().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("clustertasks"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Tekton().V1alpha1().ClusterTasks().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("conditions"):
@@ -67,6 +65,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Tekton().V1alpha1().PipelineResources().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("pipelineruns"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Tekton().V1alpha1().PipelineRuns().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("plugins"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Tekton().V1alpha1().Plugins().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("tasks"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Tekton().V1alpha1().Tasks().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("taskruns"):

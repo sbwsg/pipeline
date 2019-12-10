@@ -31,59 +31,59 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// ArtifactTypeInformer provides access to a shared informer and lister for
-// ArtifactTypes.
-type ArtifactTypeInformer interface {
+// PluginInformer provides access to a shared informer and lister for
+// Plugins.
+type PluginInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha1.ArtifactTypeLister
+	Lister() v1alpha1.PluginLister
 }
 
-type artifactTypeInformer struct {
+type pluginInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewArtifactTypeInformer constructs a new informer for ArtifactType type.
+// NewPluginInformer constructs a new informer for Plugin type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewArtifactTypeInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredArtifactTypeInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewPluginInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredPluginInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredArtifactTypeInformer constructs a new informer for ArtifactType type.
+// NewFilteredPluginInformer constructs a new informer for Plugin type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredArtifactTypeInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredPluginInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.TektonV1alpha1().ArtifactTypes(namespace).List(options)
+				return client.TektonV1alpha1().Plugins(namespace).List(options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.TektonV1alpha1().ArtifactTypes(namespace).Watch(options)
+				return client.TektonV1alpha1().Plugins(namespace).Watch(options)
 			},
 		},
-		&pipelinev1alpha1.ArtifactType{},
+		&pipelinev1alpha1.Plugin{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *artifactTypeInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredArtifactTypeInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *pluginInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredPluginInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *artifactTypeInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&pipelinev1alpha1.ArtifactType{}, f.defaultInformer)
+func (f *pluginInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&pipelinev1alpha1.Plugin{}, f.defaultInformer)
 }
 
-func (f *artifactTypeInformer) Lister() v1alpha1.ArtifactTypeLister {
-	return v1alpha1.NewArtifactTypeLister(f.Informer().GetIndexer())
+func (f *pluginInformer) Lister() v1alpha1.PluginLister {
+	return v1alpha1.NewPluginLister(f.Informer().GetIndexer())
 }

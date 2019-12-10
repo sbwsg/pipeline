@@ -18,9 +18,7 @@ limitations under the License.
 
 package v1alpha1
 
-type ArtifactInstanceExpansion interface{}
-
-type ArtifactTypeExpansion interface{}
+type ArtifactExpansion interface{}
 
 type ClusterTaskExpansion interface{}
 
@@ -31,6 +29,8 @@ type PipelineExpansion interface{}
 type PipelineResourceExpansion interface{}
 
 type PipelineRunExpansion interface{}
+
+type PluginExpansion interface{}
 
 type TaskExpansion interface{}
 

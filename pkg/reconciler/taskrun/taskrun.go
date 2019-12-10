@@ -68,8 +68,8 @@ type Reconciler struct {
 	taskLister             listers.TaskLister
 	clusterTaskLister      listers.ClusterTaskLister
 	resourceLister         listers.PipelineResourceLister
-	artifactTypeLister     listers.ArtifactTypeLister
-	artifactInstanceLister listers.ArtifactInstanceLister
+	pluginLister           listers.PluginLister
+	artifactInstanceLister listers.ArtifactLister
 	cloudEventClient       cloudevent.CEClient
 	tracker                tracker.Interface
 	cache                  *entrypoint.Cache

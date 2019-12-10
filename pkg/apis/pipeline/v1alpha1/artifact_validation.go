@@ -6,24 +6,24 @@ import (
 	"knative.dev/pkg/apis"
 )
 
-func (a ArtifactType) Validate(ctx context.Context) *apis.FieldError {
-	if err := validateObjectMetadata(a.GetObjectMeta()); err != nil {
+func (p Plugin) Validate(ctx context.Context) *apis.FieldError {
+	if err := validateObjectMetadata(p.GetObjectMeta()); err != nil {
 		return err.ViaField("metadata")
 	}
-	return a.Spec.Validate(ctx).ViaField("Spec")
+	return p.Spec.Validate(ctx).ViaField("Spec")
 }
 
-func (a ArtifactTypeSpec) Validate(ctx context.Context) *apis.FieldError {
-	if a.ReadOnlyMode == nil && a.ReadWriteMode == nil && a.CreateMode == nil {
+func (p PluginSpec) Validate(ctx context.Context) *apis.FieldError {
+	if p.ReadOnlyMode == nil && p.ReadWriteMode == nil && p.CreateMode == nil {
 		return &apis.FieldError{
 			Message: `expect at least 1 implementation to be specified in readOnlyMode, readWriteMode or createMode fields`,
 			Paths:   []string{},
 		}
 	}
-	if ferr := a.ReadOnlyMode.Validate(ctx); ferr != nil {
+	if ferr := p.ReadOnlyMode.Validate(ctx); ferr != nil {
 		return ferr
 	}
-	if ferr := a.ReadWriteMode.Validate(ctx); ferr != nil {
+	if ferr := p.ReadWriteMode.Validate(ctx); ferr != nil {
 		return ferr
 	}
 	// if ferr := a.CreateMode.Validate(ctx); ferr != nil {
@@ -32,16 +32,16 @@ func (a ArtifactTypeSpec) Validate(ctx context.Context) *apis.FieldError {
 	return nil
 }
 
-func (ai *ArtifactImplementation) Validate(ctx context.Context) *apis.FieldError {
-	if ai == nil {
+func (p *PluginImplementation) Validate(ctx context.Context) *apis.FieldError {
+	if p == nil {
 		return nil
 	}
 	return nil
 }
 
-var supportedModes []ArtifactSpecMode = []ArtifactSpecMode{ArtifactROMode, ArtifactRWMode, ArtifactCreateMode}
+var supportedModes []PluginSpecMode = []PluginSpecMode{PluginROMode, PluginRWMode, PluginCreateMode}
 
-func isSupportedMode(m ArtifactSpecMode) bool {
+func isSupportedMode(m PluginSpecMode) bool {
 	for _, sm := range supportedModes {
 		if m == sm {
 			return true
@@ -50,6 +50,6 @@ func isSupportedMode(m ArtifactSpecMode) bool {
 	return false
 }
 
-func (ai ArtifactInstance) Validate(ctx context.Context) *apis.FieldError {
+func (a Artifact) Validate(ctx context.Context) *apis.FieldError {
 	return nil
 }

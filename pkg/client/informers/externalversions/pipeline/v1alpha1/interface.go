@@ -24,10 +24,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// ArtifactInstances returns a ArtifactInstanceInformer.
-	ArtifactInstances() ArtifactInstanceInformer
-	// ArtifactTypes returns a ArtifactTypeInformer.
-	ArtifactTypes() ArtifactTypeInformer
+	// Artifacts returns a ArtifactInformer.
+	Artifacts() ArtifactInformer
 	// ClusterTasks returns a ClusterTaskInformer.
 	ClusterTasks() ClusterTaskInformer
 	// Conditions returns a ConditionInformer.
@@ -38,6 +36,8 @@ type Interface interface {
 	PipelineResources() PipelineResourceInformer
 	// PipelineRuns returns a PipelineRunInformer.
 	PipelineRuns() PipelineRunInformer
+	// Plugins returns a PluginInformer.
+	Plugins() PluginInformer
 	// Tasks returns a TaskInformer.
 	Tasks() TaskInformer
 	// TaskRuns returns a TaskRunInformer.
@@ -55,14 +55,9 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// ArtifactInstances returns a ArtifactInstanceInformer.
-func (v *version) ArtifactInstances() ArtifactInstanceInformer {
-	return &artifactInstanceInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
-// ArtifactTypes returns a ArtifactTypeInformer.
-func (v *version) ArtifactTypes() ArtifactTypeInformer {
-	return &artifactTypeInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// Artifacts returns a ArtifactInformer.
+func (v *version) Artifacts() ArtifactInformer {
+	return &artifactInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // ClusterTasks returns a ClusterTaskInformer.
@@ -88,6 +83,11 @@ func (v *version) PipelineResources() PipelineResourceInformer {
 // PipelineRuns returns a PipelineRunInformer.
 func (v *version) PipelineRuns() PipelineRunInformer {
 	return &pipelineRunInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// Plugins returns a PluginInformer.
+func (v *version) Plugins() PluginInformer {
+	return &pluginInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // Tasks returns a TaskInformer.

@@ -22,13 +22,13 @@ import (
 
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline"
 	pipelineclient "github.com/tektoncd/pipeline/pkg/client/injection/client"
-	artifactinstanceinformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/artifactinstance"
-	artifacttypeinformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/artifacttype"
+	artifactinformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/artifact"
 	clustertaskinformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/clustertask"
 	conditioninformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/condition"
 	pipelineinformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/pipeline"
 	resourceinformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/pipelineresource"
 	pipelineruninformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/pipelinerun"
+	plugininformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/plugin"
 	taskinformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/task"
 	taskruninformer "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/taskrun"
 	"github.com/tektoncd/pipeline/pkg/reconciler"
@@ -56,8 +56,8 @@ func NewController(images pipeline.Images) func(context.Context, configmap.Watch
 		pipelineRunInformer := pipelineruninformer.Get(ctx)
 		pipelineInformer := pipelineinformer.Get(ctx)
 		resourceInformer := resourceinformer.Get(ctx)
-		artifactTypeInformer := artifacttypeinformer.Get(ctx)
-		artifactInstanceInformer := artifactinstanceinformer.Get(ctx)
+		pluginInformer := plugininformer.Get(ctx)
+		artifactInformer := artifactinformer.Get(ctx)
 		conditionInformer := conditioninformer.Get(ctx)
 		timeoutHandler := reconciler.NewTimeoutHandler(ctx.Done(), logger)
 		metrics, err := NewRecorder()
@@ -74,18 +74,18 @@ func NewController(images pipeline.Images) func(context.Context, configmap.Watch
 		}
 
 		c := &Reconciler{
-			Base:                   reconciler.NewBase(opt, pipelineRunAgentName, images),
-			pipelineRunLister:      pipelineRunInformer.Lister(),
-			pipelineLister:         pipelineInformer.Lister(),
-			taskLister:             taskInformer.Lister(),
-			clusterTaskLister:      clusterTaskInformer.Lister(),
-			taskRunLister:          taskRunInformer.Lister(),
-			resourceLister:         resourceInformer.Lister(),
-			artifactTypeLister:     artifactTypeInformer.Lister(),
-			artifactInstanceLister: artifactInstanceInformer.Lister(),
-			conditionLister:        conditionInformer.Lister(),
-			timeoutHandler:         timeoutHandler,
-			metrics:                metrics,
+			Base:              reconciler.NewBase(opt, pipelineRunAgentName, images),
+			pipelineRunLister: pipelineRunInformer.Lister(),
+			pipelineLister:    pipelineInformer.Lister(),
+			taskLister:        taskInformer.Lister(),
+			clusterTaskLister: clusterTaskInformer.Lister(),
+			taskRunLister:     taskRunInformer.Lister(),
+			resourceLister:    resourceInformer.Lister(),
+			pluginLister:      pluginInformer.Lister(),
+			artifactLister:    artifactInformer.Lister(),
+			conditionLister:   conditionInformer.Lister(),
+			timeoutHandler:    timeoutHandler,
+			metrics:           metrics,
 		}
 		impl := controller.NewImpl(c, c.Logger, pipelineRunControllerName)
 

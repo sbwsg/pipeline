@@ -22,12 +22,12 @@ import (
 	"context"
 
 	fake "github.com/tektoncd/pipeline/pkg/client/injection/informers/factory/fake"
-	artifacttype "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/artifacttype"
+	artifact "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/artifact"
 	controller "knative.dev/pkg/controller"
 	injection "knative.dev/pkg/injection"
 )
 
-var Get = artifacttype.Get
+var Get = artifact.Get
 
 func init() {
 	injection.Fake.RegisterInformer(withInformer)
@@ -35,6 +35,6 @@ func init() {
 
 func withInformer(ctx context.Context) (context.Context, controller.Informer) {
 	f := fake.Get(ctx)
-	inf := f.Tekton().V1alpha1().ArtifactTypes()
-	return context.WithValue(ctx, artifacttype.Key{}, inf), inf.Informer()
+	inf := f.Tekton().V1alpha1().Artifacts()
+	return context.WithValue(ctx, artifact.Key{}, inf), inf.Informer()
 }

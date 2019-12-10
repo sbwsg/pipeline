@@ -21,21 +21,20 @@ package fake
 import (
 	"context"
 
-	externalversions "github.com/tektoncd/pipeline/pkg/client/informers/externalversions"
-	fake "github.com/tektoncd/pipeline/pkg/client/injection/client/fake"
-	factory "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/factory"
+	fake "github.com/tektoncd/pipeline/pkg/client/injection/informers/factory/fake"
+	plugin "github.com/tektoncd/pipeline/pkg/client/injection/informers/pipeline/v1alpha1/plugin"
 	controller "knative.dev/pkg/controller"
 	injection "knative.dev/pkg/injection"
 )
 
-var Get = factory.Get
+var Get = plugin.Get
 
 func init() {
-	injection.Fake.RegisterInformerFactory(withInformerFactory)
+	injection.Fake.RegisterInformer(withInformer)
 }
 
-func withInformerFactory(ctx context.Context) context.Context {
-	c := fake.Get(ctx)
-	return context.WithValue(ctx, factory.Key{},
-		externalversions.NewSharedInformerFactory(c, controller.GetResyncPeriod(ctx)))
+func withInformer(ctx context.Context) (context.Context, controller.Informer) {
+	f := fake.Get(ctx)
+	inf := f.Tekton().V1alpha1().Plugins()
+	return context.WithValue(ctx, plugin.Key{}, inf), inf.Informer()
 }

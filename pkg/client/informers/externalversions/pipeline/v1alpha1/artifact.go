@@ -31,59 +31,59 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// ArtifactInstanceInformer provides access to a shared informer and lister for
-// ArtifactInstances.
-type ArtifactInstanceInformer interface {
+// ArtifactInformer provides access to a shared informer and lister for
+// Artifacts.
+type ArtifactInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha1.ArtifactInstanceLister
+	Lister() v1alpha1.ArtifactLister
 }
 
-type artifactInstanceInformer struct {
+type artifactInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewArtifactInstanceInformer constructs a new informer for ArtifactInstance type.
+// NewArtifactInformer constructs a new informer for Artifact type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewArtifactInstanceInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredArtifactInstanceInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewArtifactInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredArtifactInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredArtifactInstanceInformer constructs a new informer for ArtifactInstance type.
+// NewFilteredArtifactInformer constructs a new informer for Artifact type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredArtifactInstanceInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredArtifactInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.TektonV1alpha1().ArtifactInstances(namespace).List(options)
+				return client.TektonV1alpha1().Artifacts(namespace).List(options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.TektonV1alpha1().ArtifactInstances(namespace).Watch(options)
+				return client.TektonV1alpha1().Artifacts(namespace).Watch(options)
 			},
 		},
-		&pipelinev1alpha1.ArtifactInstance{},
+		&pipelinev1alpha1.Artifact{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *artifactInstanceInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredArtifactInstanceInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *artifactInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredArtifactInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *artifactInstanceInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&pipelinev1alpha1.ArtifactInstance{}, f.defaultInformer)
+func (f *artifactInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&pipelinev1alpha1.Artifact{}, f.defaultInformer)
 }
 
-func (f *artifactInstanceInformer) Lister() v1alpha1.ArtifactInstanceLister {
-	return v1alpha1.NewArtifactInstanceLister(f.Informer().GetIndexer())
+func (f *artifactInformer) Lister() v1alpha1.ArtifactLister {
+	return v1alpha1.NewArtifactLister(f.Informer().GetIndexer())
 }

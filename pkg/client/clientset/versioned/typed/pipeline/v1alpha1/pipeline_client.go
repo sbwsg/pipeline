@@ -27,13 +27,13 @@ import (
 
 type TektonV1alpha1Interface interface {
 	RESTClient() rest.Interface
-	ArtifactInstancesGetter
-	ArtifactTypesGetter
+	ArtifactsGetter
 	ClusterTasksGetter
 	ConditionsGetter
 	PipelinesGetter
 	PipelineResourcesGetter
 	PipelineRunsGetter
+	PluginsGetter
 	TasksGetter
 	TaskRunsGetter
 }
@@ -43,12 +43,8 @@ type TektonV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *TektonV1alpha1Client) ArtifactInstances(namespace string) ArtifactInstanceInterface {
-	return newArtifactInstances(c, namespace)
-}
-
-func (c *TektonV1alpha1Client) ArtifactTypes(namespace string) ArtifactTypeInterface {
-	return newArtifactTypes(c, namespace)
+func (c *TektonV1alpha1Client) Artifacts(namespace string) ArtifactInterface {
+	return newArtifacts(c, namespace)
 }
 
 func (c *TektonV1alpha1Client) ClusterTasks() ClusterTaskInterface {
@@ -69,6 +65,10 @@ func (c *TektonV1alpha1Client) PipelineResources(namespace string) PipelineResou
 
 func (c *TektonV1alpha1Client) PipelineRuns(namespace string) PipelineRunInterface {
 	return newPipelineRuns(c, namespace)
+}
+
+func (c *TektonV1alpha1Client) Plugins(namespace string) PluginInterface {
+	return newPlugins(c, namespace)
 }
 
 func (c *TektonV1alpha1Client) Tasks(namespace string) TaskInterface {
