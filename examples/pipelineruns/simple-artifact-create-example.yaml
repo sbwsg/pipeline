@@ -1,0 +1,71 @@
+apiVersion: tekton.dev/v1alpha1
+kind: Task
+metadata:
+  name: create-a-thing-please
+spec:
+  artifacts:
+    - name: outputrepo
+      type: simple-git
+      mode: create
+  steps:
+    - name: grep-file
+      image: alpine/git
+      script: |
+        #!/usr/bin/env sh
+        set -e
+        set -x
+        cat > /dev/termination-log << TEKTONEOF
+          [
+            {
+              "key": "outputrepo.url",
+              "value": "https://github.com/tektoncd/pipeline.git"
+            },
+            {
+              "key": "outputrepo.ref",
+              "value": "master"
+            }
+          ]
+        TEKTONEOF
+---
+apiVersion: tekton.dev/v1alpha1
+kind: Task
+metadata:
+  name: print-git-resource-values
+spec:
+  artifacts:
+    - name: git-resource
+      type: simple-git
+      mode: ro
+  steps:
+    - name: print-values
+      image: alpine
+      script: |
+        #!/usr/bin/env sh
+        set -e
+        set -x
+        echo $(artifacts.git-resource.params.url)
+        echo $(artifacts.git-resource.params.ref)
+---
+apiVersion: tekton.dev/v1alpha1
+kind: Pipeline
+metadata:
+  name: artifact-sketch-pipeline
+spec:
+  tasks:
+    - name: create-git-resource
+      taskRef:
+        name: create-a-thing-please
+    - name: print-git-resource
+      taskRef:
+        name: print-git-resource-values
+      artifacts:
+        - name: git-resource
+          from: tasks.create-git-resource.artifacts.outputrepo
+---
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineRun
+metadata:
+  name: simple-artifact-sketch
+spec:
+  pipelineRef:
+    name: artifact-sketch-pipeline

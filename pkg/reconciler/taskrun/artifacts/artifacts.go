@@ -19,6 +19,10 @@ func ResolveArtifacts(tr *v1alpha1.TaskRun, ts *v1alpha1.TaskSpec, lister lister
 
 			found := false
 
+			if mode == "create" {
+				return nil
+			}
+
 			for _, b := range tr.Spec.Artifacts {
 				if b.Name != name {
 					continue
@@ -30,14 +34,10 @@ func ResolveArtifacts(tr *v1alpha1.TaskRun, ts *v1alpha1.TaskSpec, lister lister
 				if artifactType == nil {
 					return fmt.Errorf("no artifact type found with name %q", typ)
 				}
-				// Create mode simple defines a contract for a task to fulfill so it doesn't
-				// inject any containers of its own.
-				if mode != "create" {
-					impl := getImplementationSupportingMode(artifactType.Spec, mode)
-					if impl != nil {
-						inject(tr, ts, impl, &b)
-						found = true
-					}
+				impl := getImplementationSupportingMode(artifactType.Spec, mode)
+				if impl != nil {
+					inject(tr, ts, impl, &b)
+					found = true
 				}
 			}
 
