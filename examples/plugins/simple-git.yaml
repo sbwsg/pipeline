@@ -1,5 +1,5 @@
 apiVersion: tekton.dev/v1alpha1
-kind: ArtifactType
+kind: Plugin
 metadata:
   name: simple-git
 spec:

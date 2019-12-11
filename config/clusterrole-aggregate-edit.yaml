@@ -15,8 +15,8 @@ rules:
   - pipelineruns
   - pipelineresources
   - conditions
-  - artifacttypes
-  - artifactinstances
+  - plugins
+  - artifacts
   verbs:
   - create
   - delete
