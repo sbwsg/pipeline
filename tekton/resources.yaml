@@ -8,7 +8,7 @@ spec:
   - name: url
     value: https://github.com/tektoncd/pipeline
   - name: revision
-    value: v0.11.0-rc1
+    value: e7784b359c49d7f4a059c59574b9cbeb31f0014f
 ---
 apiVersion: tekton.dev/v1alpha1
 kind: PipelineResource
