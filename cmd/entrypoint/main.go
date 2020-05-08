@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/tektoncd/pipeline/pkg/credentials"
+	"github.com/tektoncd/pipeline/pkg/credentials/dockercreds"
+	"github.com/tektoncd/pipeline/pkg/credentials/gitcreds"
 	"github.com/tektoncd/pipeline/pkg/entrypoint"
 )
 
@@ -40,7 +42,20 @@ var (
 )
 
 func main() {
+	// Add credential flags originally used in creds-init.
+	// We're going to try initializing them in the entrypoint instead.
+	gitcreds.AddFlags(flag.CommandLine)
+	dockercreds.AddFlags(flag.CommandLine)
 	flag.Parse()
+
+	// Hookay, let's try and build the credential files from the secret volume mounts;
+	// these should end up in /tekton/home or /tekton/creds?
+	builders := []credentials.Builder{dockercreds.NewBuilder(), gitcreds.NewBuilder()}
+	for _, c := range builders {
+		if err := c.Write(); err != nil {
+			log.Printf("Error initializing credentials: %s", err)
+		}
+	}
 
 	e := entrypoint.Entrypointer{
 		Entrypoint:      *ep,

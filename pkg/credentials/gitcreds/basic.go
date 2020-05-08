@@ -72,6 +72,7 @@ func (dc *basicGitConfig) Set(value string) error {
 }
 
 func (dc *basicGitConfig) Write() error {
+	// This assumes that it's running in creds-init where HOME is /tekton/home or /tekton/creds
 	gitConfigPath := filepath.Join(os.Getenv("HOME"), ".gitconfig")
 	gitConfigs := []string{
 		"[credential]\n	helper = store\n",
