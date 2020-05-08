@@ -37,15 +37,16 @@ var config basicDocker
 var dockerConfig string
 var dockerCfg string
 
+// AddFlags adds CLI flags that dockercreds supports to a given flag.FlagSet.
+func AddFlags(flagSet *flag.FlagSet) {
+	flags(flagSet)
+}
+
 func flags(fs *flag.FlagSet) {
 	config = basicDocker{make(map[string]entry)}
 	fs.Var(&config, "basic-docker", "List of secret=url pairs.")
 	fs.StringVar(&dockerConfig, "docker-config", "", "Docker config.json secret file.")
 	fs.StringVar(&dockerCfg, "docker-cfg", "", "Docker .dockercfg secret file.")
-}
-
-func init() {
-	flags(flag.CommandLine)
 }
 
 // As the flag is read, this status is populated.

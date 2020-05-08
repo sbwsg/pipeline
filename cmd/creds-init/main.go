@@ -25,6 +25,8 @@ import (
 )
 
 func main() {
+	gitcreds.AddFlags(flag.CommandLine)
+	dockercreds.AddFlags(flag.CommandLine)
 	flag.Parse()
 
 	prod, _ := zap.NewProduction()
