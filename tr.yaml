@@ -1,0 +1,48 @@
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  name: test
+spec:
+  taskSpec:
+    steps:
+    - name: check-dirs
+      image: alpine/git
+      env:
+      - name: HOME
+        value: /myhome
+      securityContext:
+        runAsUser: 1111
+        runAsGroup: 2222
+      script: |
+        id
+        echo "\$HOME is $HOME"
+        echo "\$\(credentials.path\) is $(credentials.path)"
+        if [ -d /tekton/creds ]; then
+          ls -lahR /tekton/creds
+        fi
+        if [ -d /tekton/home ]; then
+          ls -lahR /tekton/home
+        fi
+        if [ -d /tekton/creds-secrets ]; then
+          ls -lahR /tekton/creds-secrets
+        fi
+        # git clone --verbose git@github.com:tektoncd/pipeline.git
+    - name: foo-the-bar
+      image: alpine/git
+      env:
+      - name: HOME
+        value: /i-have-no-home
+      securityContext:
+        runAsUser: 2222
+        runAsGroup: 3333
+      script: |
+        id
+        echo "\$HOME is $HOME"
+        echo "\$\(credentials.path\) is $(credentials.path)"
+        if [ -d /tekton/creds ]; then
+          ls -lahR /tekton/creds
+        fi
+        if [ -d /tekton/home ]; then
+          ls -lahR /tekton/home
+        fi
+        # git clone --verbose git@github.com:tektoncd/pipeline.git
