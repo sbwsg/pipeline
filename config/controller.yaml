@@ -47,7 +47,6 @@ spec:
           # These images are built on-demand by `ko resolve` and are replaced
           # by image references by digest.
           "-kubeconfig-writer-image", "github.com/tektoncd/pipeline/cmd/kubeconfigwriter",
-          "-creds-image", "github.com/tektoncd/pipeline/cmd/creds-init",
           "-git-image", "github.com/tektoncd/pipeline/cmd/git-init",
           "-entrypoint-image", "github.com/tektoncd/pipeline/cmd/entrypoint",
           "-imagedigest-exporter-image", "github.com/tektoncd/pipeline/cmd/imagedigestexporter",

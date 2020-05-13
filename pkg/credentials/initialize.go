@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	// credsPath is the path where creds-init will store credentials
-	// when HOME is not being explicitly set to /tekton/home.
+	// credsPath is the path where credentials will be stored
+	// before being moved to a Step's HOME directory.
 	credsPath = "/tekton/creds"
 
 	// credsDirPermissions are the persmission bits assigned to the directories
@@ -43,8 +43,9 @@ const (
 	credsFilePermissions = 0600
 )
 
-// CredsInitCredentials is the complete list of credentials that creds-init can write to /tekton/creds.
-var CredsInitCredentials = []string{".docker", ".gitconfig", ".git-credentials", ".ssh"}
+// BuiltInCredentials is the complete list of credential files and directories
+// that potentially written from annotated Secrets.
+var BuiltInCredentials = []string{".docker", ".gitconfig", ".git-credentials", ".ssh"}
 
 // VolumePath is the path where build secrets are written.
 // It is mutable and exported for testing.
@@ -57,8 +58,8 @@ type Builder interface {
 	// length 0 or greater) of applicable domains.
 	MatchingAnnotations(*corev1.Secret) []string
 
-	// Write writes the credentials to the correct location.
-	Write() error
+	// Write writes the credentials to the provided directory.
+	Write(string) error
 }
 
 // VolumeName returns the full path to the secret, inside the VolumePath.

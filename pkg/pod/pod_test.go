@@ -38,7 +38,6 @@ import (
 var (
 	images = pipeline.Images{
 		EntrypointImage: "entrypoint-image",
-		CredsImage:      "override-with-creds:latest",
 		ShellImage:      "busybox",
 	}
 )
@@ -129,21 +128,7 @@ func TestMakePod(t *testing.T) {
 		want: &corev1.PodSpec{
 			ServiceAccountName: "service-account",
 			RestartPolicy:      corev1.RestartPolicyNever,
-			InitContainers: []corev1.Container{{
-				Name:    "credential-initializer",
-				Image:   images.CredsImage,
-				Command: []string{"/ko-app/creds-init"},
-				Args: []string{
-					"-basic-docker=multi-creds=https://docker.io",
-					"-basic-docker=multi-creds=https://us.gcr.io",
-					"-basic-git=multi-creds=github.com",
-					"-basic-git=multi-creds=gitlab.com",
-				},
-				VolumeMounts: append(implicitVolumeMounts, secretsVolumeMount),
-				Env:          implicitEnvVars,
-			},
-				placeToolsInit,
-			},
+			InitContainers:     []corev1.Container{placeToolsInit},
 			Containers: []corev1.Container{{
 				Name:    "step-name",
 				Image:   "image",

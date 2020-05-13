@@ -49,10 +49,12 @@ func main() {
 	flag.Parse()
 
 	// Hookay, let's try and build the credential files from the secret volume mounts;
-	// these should end up in /tekton/home or /tekton/creds?
+	// these should end up in /tekton/creds
+	// Why?  Because we have an existing contract that says we'll put credentials in a
+	// fixed location and make that location available with $(credentials.path)
 	builders := []credentials.Builder{dockercreds.NewBuilder(), gitcreds.NewBuilder()}
 	for _, c := range builders {
-		if err := c.Write(); err != nil {
+		if err := c.Write("/tekton/creds"); err != nil {
 			log.Printf("Error initializing credentials: %s", err)
 		}
 	}
@@ -70,9 +72,9 @@ func main() {
 		Results:         strings.Split(*results, ","),
 	}
 
-	// Copy any creds injected by creds-init into the $HOME directory of the current
+	// Copy any creds injected by the controller into the $HOME directory of the current
 	// user so that they're discoverable by git / ssh.
-	if err := credentials.CopyCredsToHome(credentials.CredsInitCredentials); err != nil {
+	if err := credentials.CopyCredsToHome(credentials.BuiltInCredentials); err != nil {
 		log.Printf("non-fatal error copying credentials: %q", err)
 	}
 

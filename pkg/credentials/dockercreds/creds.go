@@ -149,9 +149,8 @@ func (*basicDockerBuilder) MatchingAnnotations(secret *corev1.Secret) []string {
 	return flags
 }
 
-func (*basicDockerBuilder) Write() error {
-	// This assumes that it's running in creds-init where HOME is /tekton/home or /tekton/creds
-	dockerDir := filepath.Join(os.Getenv("HOME"), ".docker")
+func (*basicDockerBuilder) Write(directory string) error {
+	dockerDir := filepath.Join(directory, ".docker")
 	basicDocker := filepath.Join(dockerDir, "config.json")
 	if err := os.MkdirAll(dockerDir, os.ModePerm); err != nil {
 		return err

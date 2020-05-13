@@ -26,7 +26,7 @@ This page documents the variable substitions supported by `Tasks` and `Pipelines
 | `workspaces.<workspaceName>.path` | The path to the mounted `Workspace`. |
 | `workspaces.<workspaceName>.claim` | The name of the `PersistentVolumeClaim` specified as a volume source for the `Workspace`. Empty string for other volume types. |
 | `workspaces.<workspaceName>.volume` | The name of the volume populating the `Workspace`. |
-| `credentials.path` | The path to the credentials written by the `creds-init` init container. |
+| `credentials.path` | The path to credentials from Secrets with matching annotations. |
 
 ### `PipelineResource` variables available in a `Task`
 

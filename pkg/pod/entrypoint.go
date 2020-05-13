@@ -86,7 +86,7 @@ var (
 // method, using entrypoint_lookup.go.
 //
 // TODO(#1605): Also use entrypoint injection to order sidecar start/stop.
-func orderContainers(entrypointImage string, steps []corev1.Container, results []v1alpha1.TaskResult) (corev1.Container, []corev1.Container, error) {
+func orderContainers(entrypointImage string, extraEntrypointArgs []string, steps []corev1.Container, results []v1alpha1.TaskResult) (corev1.Container, []corev1.Container, error) {
 	initContainer := corev1.Container{
 		Name:         "place-tools",
 		Image:        entrypointImage,
@@ -119,6 +119,7 @@ func orderContainers(entrypointImage string, steps []corev1.Container, results [
 			}
 		}
 		argsForEntrypoint = append(argsForEntrypoint, resultArgument(steps, results)...)
+		argsForEntrypoint = append(argsForEntrypoint, extraEntrypointArgs...)
 
 		cmd, args := s.Command, s.Args
 		if len(cmd) == 0 {
@@ -224,17 +225,17 @@ func IsSidecarStatusRunning(tr *v1alpha1.TaskRun) bool {
 	return false
 }
 
-// isContainerStep returns true if the container name indicates that it
+// IsContainerStep returns true if the container name indicates that it
 // represents a step.
 func IsContainerStep(name string) bool { return strings.HasPrefix(name, stepPrefix) }
 
-// isContainerSidecar returns true if the container name indicates that it
+// IsContainerSidecar returns true if the container name indicates that it
 // represents a sidecar.
 func isContainerSidecar(name string) bool { return strings.HasPrefix(name, sidecarPrefix) }
 
 // trimStepPrefix returns the container name, stripped of its step prefix.
 func trimStepPrefix(name string) string { return strings.TrimPrefix(name, stepPrefix) }
 
-// trimSidecarPrefix returns the container name, stripped of its sidecar
+// TrimSidecarPrefix returns the container name, stripped of its sidecar
 // prefix.
 func TrimSidecarPrefix(name string) string { return strings.TrimPrefix(name, sidecarPrefix) }

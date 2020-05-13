@@ -22,8 +22,6 @@ spec:
     type: image
   - name: builtKubeconfigWriterImage
     type: image
-  - name: builtCredsInitImage
-    type: image
   - name: builtGitInitImage
     type: image
   - name: builtControllerImage
@@ -85,8 +83,6 @@ spec:
             resource: builtEntrypointImage
           - name: builtKubeconfigWriterImage
             resource: builtKubeconfigWriterImage
-          - name: builtCredsInitImage
-            resource: builtCredsInitImage
           - name: builtGitInitImage
             resource: builtGitInitImage
           - name: builtControllerImage

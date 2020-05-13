@@ -77,9 +77,9 @@ func (*gitConfigBuilder) MatchingAnnotations(secret *corev1.Secret) []string {
 	return flags
 }
 
-func (*gitConfigBuilder) Write() error {
-	if err := basicConfig.Write(); err != nil {
+func (*gitConfigBuilder) Write(directory string) error {
+	if err := basicConfig.Write(directory); err != nil {
 		return err
 	}
-	return sshConfig.Write()
+	return sshConfig.Write(directory)
 }

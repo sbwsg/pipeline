@@ -25,8 +25,6 @@ type Images struct {
 	NopImage string
 	// GitImage is the container image with Git that we use to implement the Git source step.
 	GitImage string
-	// CredsImage is the container image used to initialize credentials before the build runs.
-	CredsImage string
 	// KubeconfigWriterImage is the container image containing our kubeconfig writer binary.
 	KubeconfigWriterImage string
 	// ShellImage is the container image containing bash shell.

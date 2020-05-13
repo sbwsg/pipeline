@@ -600,7 +600,7 @@ func (c *Reconciler) createPod(tr *v1alpha1.TaskRun, rtr *resources.ResolvedTask
 	shouldOverrideHomeEnv := podconvert.ShouldOverrideHomeEnv(c.KubeClientSet)
 
 	// Apply creds-init path substitutions.
-	ts = resources.ApplyCredentialsPath(ts, podconvert.CredentialsPath(shouldOverrideHomeEnv))
+	ts = resources.ApplyCredentialsPath(ts, "/tekton/creds")
 
 	pod, err := podconvert.MakePod(c.Images, tr, *ts, c.KubeClientSet, c.entrypointCache, shouldOverrideHomeEnv)
 	if err != nil {
