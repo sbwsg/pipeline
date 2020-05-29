@@ -20,11 +20,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"reflect"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/tektoncd/pipeline/pkg/apis/config"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	"github.com/tektoncd/pipeline/pkg/apis/resource"
@@ -38,6 +40,7 @@ import (
 	"github.com/tektoncd/pipeline/pkg/reconciler/events/cloudevent"
 	"github.com/tektoncd/pipeline/pkg/reconciler/taskrun/resources"
 	"github.com/tektoncd/pipeline/pkg/reconciler/volumeclaim"
+	"github.com/tektoncd/pipeline/pkg/system"
 	"github.com/tektoncd/pipeline/pkg/termination"
 	"github.com/tektoncd/pipeline/pkg/workspace"
 	"go.uber.org/zap"
@@ -301,6 +304,7 @@ func (c *Reconciler) prepare(ctx context.Context, tr *v1beta1.TaskRun) (*v1beta1
 		return nil, nil, err
 	}
 
+	c.updateTaskRunWithDefaultWorkspaces(tr, taskSpec)
 	if err := workspace.ValidateBindings(taskSpec.Workspaces, tr.Spec.Workspaces); err != nil {
 		c.Logger.Errorf("TaskRun %q workspaces are invalid: %v", tr.Name, err)
 		tr.Status.MarkResourceFailed(podconvert.ReasonFailedValidation, err)
@@ -404,6 +408,43 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun,
 	}
 
 	c.Logger.Infof("Successfully reconciled taskrun %s/%s with status: %#v", tr.Name, tr.Namespace, tr.Status.GetCondition(apis.ConditionSucceeded))
+	return nil
+}
+
+func (c *Reconciler) updateTaskRunWithDefaultWorkspaces(tr *v1beta1.TaskRun, taskSpec *v1beta1.TaskSpec) error {
+	configMap, err := c.KubeClientSet.CoreV1().ConfigMaps(system.GetNamespace()).Get("config-defaults", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("Failed to look up config-defaults ConfigMap: %w", err)
+	}
+	defaults, err := config.NewDefaultsFromConfigMap(configMap)
+	if err != nil {
+		return fmt.Errorf("Failed to read defaults configmap: %w", err)
+	}
+	if defaults.DefaultTaskRunWorkspaceBinding != nil {
+		workspaceBindings := map[string]v1beta1.WorkspaceBinding{}
+
+		defaultWS := defaults.DefaultTaskRunWorkspaceBinding
+		for _, tsWorkspace := range taskSpec.Workspaces {
+			workspaceBindings[tsWorkspace.Name] = v1beta1.WorkspaceBinding{
+				Name:                  tsWorkspace.Name,
+				SubPath:               defaultWS.SubPath,
+				VolumeClaimTemplate:   defaultWS.VolumeClaimTemplate,
+				PersistentVolumeClaim: defaultWS.PersistentVolumeClaim,
+				EmptyDir:              defaultWS.EmptyDir,
+				ConfigMap:             defaultWS.ConfigMap,
+				Secret:                defaultWS.Secret,
+			}
+		}
+
+		for _, trWorkspace := range tr.Spec.Workspaces {
+			workspaceBindings[trWorkspace.Name] = trWorkspace
+		}
+
+		tr.Spec.Workspaces = []v1beta1.WorkspaceBinding{}
+		for _, wsBinding := range workspaceBindings {
+			tr.Spec.Workspaces = append(tr.Spec.Workspaces, wsBinding)
+		}
+	}
 	return nil
 }
 

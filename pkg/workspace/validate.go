@@ -43,8 +43,12 @@ func ValidateBindings(w []v1beta1.WorkspaceDeclaration, wb []v1beta1.WorkspaceBi
 	for i := range wb {
 		bindNames[i] = wb[i].Name
 	}
+
 	if err := list.IsSame(declNames, bindNames); err != nil {
-		return fmt.Errorf("bound workspaces did not match declared workspaces: %v", err)
+		return fmt.Errorf("bound workspaces did not match declared workspaces: %v\nexpected: %v\nreceived: %v",
+			err,
+			declNames,
+			bindNames)
 	}
 	return nil
 }
