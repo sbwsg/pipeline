@@ -118,6 +118,14 @@ func Apply(ts v1beta1.TaskSpec, wb []v1beta1.WorkspaceBinding, v map[string]core
 			ts.Volumes = append(ts.Volumes, vv)
 			addedVolumes.Insert(vv.Name)
 		}
+
+		for _, bindingFile := range wb[i].Files {
+			for _, declarationFile := range w.Files {
+				if declarationFile.Name == bindingFile.Name && bindingFile.Path != "" {
+					declarationFile.Path = bindingFile.Path
+				}
+			}
+		}
 	}
 	return &ts, nil
 }

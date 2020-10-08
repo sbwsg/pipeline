@@ -66,6 +66,8 @@ type Entrypointer struct {
 	Results []string
 	// Timeout is an optional user-specified duration within which the Step must complete
 	Timeout *time.Duration
+
+	WorkspaceFiles map[string]map[string]string
 }
 
 // Waiter encapsulates waiting for files to exist.
@@ -129,12 +131,36 @@ func (e Entrypointer) Go() error {
 	}
 
 	if err == nil {
+		for wsName, files := range e.WorkspaceFiles {
+			for name, path := range files {
+				if _, err = os.Stat(path); err != nil {
+					message := fmt.Sprintf(
+						`Workspace File missing: workspace %q does not provide file %q at path %q`,
+						wsName, name, path,
+					)
+					err = fmt.Errorf("%s: %v", message, err)
+					output = append(output, v1beta1.PipelineResourceResult{
+						Key:        "Reason",
+						Value:      "WorkspaceFileMissing",
+						ResultType: v1beta1.InternalTektonResultType,
+					}, v1beta1.PipelineResourceResult{
+						Key:        "Message",
+						Value:      message,
+						ResultType: v1beta1.InternalTektonResultType,
+					})
+				}
+			}
+		}
+	}
+
+	if err == nil {
 		ctx := context.Background()
 		var cancel context.CancelFunc
 		if e.Timeout != nil && *e.Timeout != time.Duration(0) {
 			ctx, cancel = context.WithTimeout(ctx, *e.Timeout)
 			defer cancel()
 		}
+
 		err = e.Runner.Run(ctx, e.Args...)
 		if err == context.DeadlineExceeded {
 			output = append(output, v1beta1.PipelineResourceResult{

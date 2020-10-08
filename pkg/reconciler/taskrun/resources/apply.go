@@ -21,11 +21,11 @@ import (
 	"path/filepath"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	"github.com/tektoncd/pipeline/pkg/substitution"
+	"github.com/tektoncd/pipeline/pkg/workspace"
 )
 
 // ApplyParameters applies the params from a TaskRun.Input.Parameters to a TaskSpec
@@ -115,19 +115,34 @@ func ApplyContexts(spec *v1beta1.TaskSpec, rtr *ResolvedTaskResources, tr *v1bet
 func ApplyWorkspaces(spec *v1beta1.TaskSpec, declarations []v1beta1.WorkspaceDeclaration, bindings []v1beta1.WorkspaceBinding, vols map[string]corev1.Volume) *v1beta1.TaskSpec {
 	stringReplacements := map[string]string{}
 
-	bindNames := sets.NewString()
+	bindingMap := map[string]v1beta1.WorkspaceBinding{}
 	for _, binding := range bindings {
-		bindNames.Insert(binding.Name)
+		bindingMap[binding.Name] = binding
 	}
 
 	for _, declaration := range declarations {
 		prefix := fmt.Sprintf("workspaces.%s.", declaration.Name)
-		if declaration.Optional && !bindNames.Has(declaration.Name) {
+
+		if declaration.Optional {
 			stringReplacements[prefix+"bound"] = "false"
 			stringReplacements[prefix+"path"] = ""
-		} else {
+
+			for _, file := range declaration.Files {
+				stringReplacements[prefix+"files."+file.Name+".path"] = ""
+			}
+		}
+
+		if _, ok := bindingMap[declaration.Name]; ok {
 			stringReplacements[prefix+"bound"] = "true"
 			stringReplacements[prefix+"path"] = declaration.GetMountPath()
+
+			binding := bindingMap[declaration.Name]
+			fileMap := workspace.FilesToMap(declaration.GetMountPath(), declaration.Files, binding.Files)
+			for _, file := range declaration.Files {
+				if p, ok := fileMap[file.Name]; ok {
+					stringReplacements[prefix+"files."+file.Name+".path"] = p
+				}
+			}
 		}
 	}
 

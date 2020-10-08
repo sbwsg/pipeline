@@ -163,13 +163,31 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 					trs.TaskRunResults = append(trs.TaskRunResults, taskResults...)
 					trs.ResourcesResult = append(trs.ResourcesResult, pipelineResourceResults...)
 				}
-				msg, err = createMessageFromResults(filteredResults)
-				if err != nil {
-					logger.Errorf("%v", err)
-					err = multierror.Append(merr, err)
-				} else {
-					s.State.Terminated.Message = msg
+				messageResult := ""
+				for _, r := range results {
+					if r.ResultType == v1beta1.InternalTektonResultType && r.Key == "Message" {
+						messageResult = r.Value
+					}
 				}
+				if messageResult != "" {
+					msg = messageResult
+				} else {
+					msg, err = createMessageFromResults(filteredResults)
+					if err != nil {
+						logger.Errorf("%v", err)
+						merr = multierror.Append(merr, err)
+					}
+				}
+
+				for _, r := range results {
+					if r.ResultType == v1beta1.InternalTektonResultType && r.Key == "Reason" {
+						reason := r.Value
+						s.State.Terminated.Reason = reason
+					}
+				}
+
+				s.State.Terminated.Message = msg
+
 				if time != nil {
 					s.State.Terminated.StartedAt = *time
 				}

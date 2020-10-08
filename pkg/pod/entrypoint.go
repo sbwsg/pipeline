@@ -18,12 +18,14 @@ package pod
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
+	"github.com/tektoncd/pipeline/pkg/workspace"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -86,7 +88,7 @@ var (
 // command, we must have fetched the image's ENTRYPOINT before calling this
 // method, using entrypoint_lookup.go.
 // Additionally, Step timeouts are added as entrypoint flag.
-func orderContainers(entrypointImage string, commonExtraEntrypointArgs []string, steps []corev1.Container, taskSpec *v1beta1.TaskSpec) (corev1.Container, []corev1.Container, error) {
+func orderContainers(entrypointImage string, commonExtraEntrypointArgs []string, steps []corev1.Container, taskSpec *v1beta1.TaskSpec, taskRunSpec *v1beta1.TaskRunSpec) (corev1.Container, []corev1.Container, error) {
 	initContainer := corev1.Container{
 		Name:  "place-tools",
 		Image: entrypointImage,
@@ -122,6 +124,34 @@ func orderContainers(entrypointImage string, commonExtraEntrypointArgs []string,
 		}
 		argsForEntrypoint = append(argsForEntrypoint, commonExtraEntrypointArgs...)
 		if taskSpec != nil {
+			if i == 0 {
+				workspaceMap := make(map[string]map[string]string, 0)
+				for i := range taskSpec.Workspaces {
+					mountPath := taskSpec.Workspaces[i].GetMountPath()
+					if taskRunSpec != nil && len(taskRunSpec.Workspaces) > 0 {
+						var binding v1beta1.WorkspaceBinding
+						for _, trw := range taskRunSpec.Workspaces {
+							if trw.Name == taskSpec.Workspaces[i].Name {
+								binding = trw
+								break
+							}
+						}
+						fm := workspace.FilesToMap(mountPath, taskSpec.Workspaces[i].Files, binding.Files)
+						if len(fm) > 0 {
+							workspaceMap[taskSpec.Workspaces[i].Name] = fm
+						}
+					}
+				}
+				if len(workspaceMap) > 0 {
+					workspaceFilesJSON, err := json.Marshal(workspaceMap)
+					if err != nil {
+						return corev1.Container{}, nil, fmt.Errorf("error converting workspace files to json: %w", err)
+					}
+					// Step 0 validates all the workspace files. One day each Step might get its
+					// own workspaces and so perform its own validation of only the files it's interested in.
+					argsForEntrypoint = append(argsForEntrypoint, "-workspace_files", string(workspaceFilesJSON))
+				}
+			}
 			if taskSpec.Steps != nil && len(taskSpec.Steps) >= i+1 && taskSpec.Steps[i].Timeout != nil {
 				argsForEntrypoint = append(argsForEntrypoint, "-timeout", taskSpec.Steps[i].Timeout.Duration.String())
 			}

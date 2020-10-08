@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"io"
 	"log"
@@ -40,8 +41,9 @@ var (
 	postFile            = flag.String("post_file", "", "If specified, file to write upon completion")
 	terminationPath     = flag.String("termination_path", "/tekton/termination", "If specified, file to write upon termination")
 	results             = flag.String("results", "", "If specified, list of file names that might contain task results")
-	waitPollingInterval = time.Second
 	timeout             = flag.Duration("timeout", time.Duration(0), "If specified, sets timeout for step")
+	workspaceFilesJSON  = flag.String("workspace_files", "{}", "JSON object. Keys are workspace names, Values are objects of filename:filepath")
+	waitPollingInterval = time.Second
 )
 
 func cp(src, dst string) error {
@@ -83,6 +85,12 @@ func main() {
 		return
 	}
 
+	var wf map[string]map[string]string
+	if err := json.Unmarshal([]byte(*workspaceFilesJSON), &wf); err != nil {
+		wf = nil
+		log.Printf("non-fatal error: invalid workspaceFiles JSON object: %v", err)
+	}
+
 	// Copy creds-init credentials from secret volume mounts to /tekton/creds
 	// This is done to support the expansion of a variable, $(credentials.path), that
 	// resolves to a single place with all the stored credentials.
@@ -105,6 +113,7 @@ func main() {
 		PostWriter:      &realPostWriter{},
 		Results:         strings.Split(*results, ","),
 		Timeout:         timeout,
+		WorkspaceFiles:  wf,
 	}
 
 	// Copy any creds injected by the controller into the $HOME directory of the current
