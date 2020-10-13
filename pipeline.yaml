@@ -1,0 +1,65 @@
+kind: Task
+apiVersion: tekton.dev/v1beta1
+metadata:
+  name: go-build-binary
+spec:
+  workspaces:
+  - name: source
+    files:
+    - name: package-to-build
+      path: /src
+  - name: output
+    files:
+    - name: name
+      path: /a.out
+  steps:
+  - image: go:alpine
+    script: |
+      go build -o "$(workspaces.output.files.name.path)" "$(workspaces.source.files.package-to-build.path)"
+---
+kind: Pipeline
+apiVersion: tekton.dev/v1beta1
+metadata:
+  name: foo
+spec:
+  workspaces:
+  - name: source-code
+  - name: output
+  tasks:
+  - name: fetch-code
+    taskRef:
+      name: git-clone
+    params:
+    - name: url
+      value: https://github.com/tektoncd/pipeline.git
+    workspaces:
+    - name: output
+      workspace: source-code
+  - name: build-code
+    taskRef:
+      name: go-build
+    workspaces:
+    - name: source
+      workspace: source-code
+    - name: output
+      workspace: output
+---
+kind: PipelineRun
+apiVersion: tekton.dev/v1beta1
+metadata:
+  name: build-entrypoint
+spec:
+  workspaces:
+  - name: source-code
+    persistentVolumeClaim:
+      claimName: my-pvc
+    subPath: source
+    files:
+    - name: build-code.package
+      path: /cmd/entrypoint
+  - name: output
+      claimName: my-pvc
+    subPath: built
+    files:
+    - name: build-code.name
+      path: entrypoint

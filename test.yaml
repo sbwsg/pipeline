@@ -1,37 +1,36 @@
 kind: Task
 apiVersion: tekton.dev/v1beta1
 metadata:
-  name: wf-test
+  name: node-build
 spec:
   workspaces:
-  - name: config
-    files:
-    - name: webpack-config
-      path: "/webpack.config.js"
+  - name: source
   steps:
-  - name: foo
+  - name: build
     image: node:alpine
     script: |
       #!/usr/bin/env ash
-      echo "File path variable: $(workspaces.config.files.webpack-config.path)"
-      node "$(workspaces.config.files.webpack-config.path)"
+      cd $(workspaces.source.path)
+      node ./build.js
 ---
 kind: ConfigMap
 apiVersion: v1
 metadata:
-  name: cm
+  name: example-source-code
 data:
-  webpack.config.js: |
-    console.log('TODO(sbws): write the webpack config');
+  # uh-oh! wrong filename; expects build.js
+  compile.js: |
+    // build and minify
+    console.log('Hello, world!');
 ---
 kind: TaskRun
 apiVersion: tekton.dev/v1beta1
 metadata:
-  name: run-wf-test
+  name: run-node-build
 spec:
   taskRef:
-    name: wf-test
+    name: node-build
   workspaces:
-  - name: config
+  - name: source
     configMap:
-      name: cm
+      name: example-source-code
