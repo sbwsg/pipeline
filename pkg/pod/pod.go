@@ -170,9 +170,11 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 		// Mount /tekton/creds with a fresh volume for each Step. It needs to
 		// be world-writeable and empty so creds can be initialized in there. Cant
 		// guarantee what UID container runs with.
-		v, vm := getCredsInitVolume()
-		volumes = append(volumes, v)
-		s.VolumeMounts = append(s.VolumeMounts, vm)
+		v, vm := getCredsInitVolume(ctx)
+		if v != nil && vm != nil {
+			volumes = append(volumes, *v)
+			s.VolumeMounts = append(s.VolumeMounts, *vm)
+		}
 
 		requestedVolumeMounts := map[string]bool{}
 		for _, vm := range s.VolumeMounts {
