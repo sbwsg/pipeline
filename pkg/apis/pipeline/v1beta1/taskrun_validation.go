@@ -71,7 +71,7 @@ func (ts *TaskRunSpec) Validate(ctx context.Context) (errs *apis.FieldError) {
 }
 
 // validateWorkspaceBindings makes sure the volumes provided for the Task's declared workspaces make sense.
-func validateWorkspaceBindings(ctx context.Context, wb []WorkspaceBinding) (errs *apis.FieldError) {
+func validateWorkspaceBindings(ctx context.Context, wb []TaskRunWorkspaceBinding) (errs *apis.FieldError) {
 	seen := sets.NewString()
 	for idx, w := range wb {
 		if seen.Has(w.Name) {

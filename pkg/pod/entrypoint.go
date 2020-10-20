@@ -124,34 +124,53 @@ func orderContainers(entrypointImage string, commonExtraEntrypointArgs []string,
 		}
 		argsForEntrypoint = append(argsForEntrypoint, commonExtraEntrypointArgs...)
 		if taskSpec != nil {
+			workspaceMap := make(map[string]map[string]map[string]string, 0)
 			if i == 0 {
-				workspaceMap := make(map[string]map[string]string, 0)
 				for i := range taskSpec.Workspaces {
 					mountPath := taskSpec.Workspaces[i].GetMountPath()
 					if taskRunSpec != nil && len(taskRunSpec.Workspaces) > 0 {
-						var binding v1beta1.WorkspaceBinding
+						var binding v1beta1.TaskRunWorkspaceBinding
 						for _, trw := range taskRunSpec.Workspaces {
 							if trw.Name == taskSpec.Workspaces[i].Name {
 								binding = trw
 								break
 							}
 						}
-						fm := workspace.FilesToMap(mountPath, taskSpec.Workspaces[i].Files, binding.Files)
-						if len(fm) > 0 {
-							workspaceMap[taskSpec.Workspaces[i].Name] = fm
+						pm := workspace.PathsToMap(mountPath, taskSpec.Workspaces[i].Paths.Expected, binding.Paths.Expected)
+						if len(pm) > 0 {
+							workspaceMap[taskSpec.Workspaces[i].Name]["expected"] = pm
 						}
 					}
 				}
-				if len(workspaceMap) > 0 {
-					workspaceFilesJSON, err := json.Marshal(workspaceMap)
-					if err != nil {
-						return corev1.Container{}, nil, fmt.Errorf("error converting workspace files to json: %w", err)
+			}
+
+			if i == len(taskSpec.Steps)-1 {
+				for i := range taskSpec.Workspaces {
+					mountPath := taskSpec.Workspaces[i].GetMountPath()
+					if taskRunSpec != nil && len(taskRunSpec.Workspaces) > 0 {
+						var binding v1beta1.TaskRunWorkspaceBinding
+						for _, trw := range taskRunSpec.Workspaces {
+							if trw.Name == taskSpec.Workspaces[i].Name {
+								binding = trw
+								break
+							}
+						}
+						pm := workspace.PathsToMap(mountPath, taskSpec.Workspaces[i].Paths.Produced, binding.Paths.Produced)
+						if len(pm) > 0 {
+							workspaceMap[taskSpec.Workspaces[i].Name]["produced"] = pm
+						}
 					}
-					// Step 0 validates all the workspace files. One day each Step might get its
-					// own workspaces and so perform its own validation of only the files it's interested in.
-					argsForEntrypoint = append(argsForEntrypoint, "-workspace_files", string(workspaceFilesJSON))
 				}
 			}
+
+			if len(workspaceMap) > 0 {
+				workspaceFilesJSON, err := json.Marshal(workspaceMap)
+				if err != nil {
+					return corev1.Container{}, nil, fmt.Errorf("error converting workspace files to json: %w", err)
+				}
+				argsForEntrypoint = append(argsForEntrypoint, "-workspace_files", string(workspaceFilesJSON))
+			}
+
 			if taskSpec.Steps != nil && len(taskSpec.Steps) >= i+1 && taskSpec.Steps[i].Timeout != nil {
 				argsForEntrypoint = append(argsForEntrypoint, "-timeout", taskSpec.Steps[i].Timeout.Duration.String())
 			}

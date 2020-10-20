@@ -63,7 +63,7 @@ type TaskRunSpec struct {
 	PodTemplate *PodTemplate `json:"podTemplate,omitempty"`
 	// Workspaces is a list of WorkspaceBindings from volumes to workspaces.
 	// +optional
-	Workspaces []WorkspaceBinding `json:"workspaces,omitempty"`
+	Workspaces []TaskRunWorkspaceBinding `json:"workspaces,omitempty"`
 }
 
 // TaskRunSpecStatus defines the taskrun spec status the user can provide

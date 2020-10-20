@@ -43,7 +43,7 @@ func (nvm nameVolumeMap) setVolumeSource(workspaceName string, volumeName string
 // wb and the value is a newly-created Volume to use. If the same Volume is bound twice, the
 // resulting volumes will both have the same name to prevent the same Volume from being attached
 // to a pod twice. The names of the returned volumes will be a short random string starting "ws-".
-func CreateVolumes(wb []v1beta1.WorkspaceBinding) map[string]corev1.Volume {
+func CreateVolumes(wb []v1beta1.TaskRunWorkspaceBinding) map[string]corev1.Volume {
 	pvcs := map[string]corev1.Volume{}
 	v := make(nameVolumeMap)
 	for _, w := range wb {
@@ -85,7 +85,7 @@ func getDeclaredWorkspace(name string, w []v1beta1.WorkspaceDeclaration) (*v1bet
 // Apply will update the StepTemplate and Volumes declaration in ts so that the workspaces
 // specified through wb combined with the declared workspaces in ts will be available for
 // all containers in the resulting pod.
-func Apply(ts v1beta1.TaskSpec, wb []v1beta1.WorkspaceBinding, v map[string]corev1.Volume) (*v1beta1.TaskSpec, error) {
+func Apply(ts v1beta1.TaskSpec, wb []v1beta1.TaskRunWorkspaceBinding, v map[string]corev1.Volume) (*v1beta1.TaskSpec, error) {
 	// If there are no bound workspaces, we don't need to do anything
 	if len(wb) == 0 {
 		return &ts, nil
@@ -119,10 +119,17 @@ func Apply(ts v1beta1.TaskSpec, wb []v1beta1.WorkspaceBinding, v map[string]core
 			addedVolumes.Insert(vv.Name)
 		}
 
-		for _, bindingFile := range wb[i].Files {
-			for _, declarationFile := range w.Files {
-				if declarationFile.Name == bindingFile.Name && bindingFile.Path != "" {
-					declarationFile.Path = bindingFile.Path
+		for _, bindingPath := range wb[i].Paths.Expected {
+			for _, declarationFile := range w.Paths.Expected {
+				if declarationFile.Name == bindingPath.Name && bindingPath.Path != "" {
+					declarationFile.Path = bindingPath.Path
+				}
+			}
+		}
+		for _, bindingPath := range wb[i].Paths.Produced {
+			for _, declarationFile := range w.Paths.Produced {
+				if declarationFile.Name == bindingPath.Name && bindingPath.Path != "" {
+					declarationFile.Path = bindingPath.Path
 				}
 			}
 		}

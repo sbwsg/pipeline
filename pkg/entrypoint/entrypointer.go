@@ -67,7 +67,7 @@ type Entrypointer struct {
 	// Timeout is an optional user-specified duration within which the Step must complete
 	Timeout *time.Duration
 
-	WorkspaceFiles map[string]map[string]string
+	WorkspaceFiles map[string]map[string]map[string]string
 }
 
 // Waiter encapsulates waiting for files to exist.
@@ -131,8 +131,8 @@ func (e Entrypointer) Go() error {
 	}
 
 	if err == nil {
-		for wsName, files := range e.WorkspaceFiles {
-			for name, path := range files {
+		for wsName, paths := range e.WorkspaceFiles {
+			for name, path := range paths["expected"] {
 				if _, err = os.Stat(path); err != nil {
 					message := fmt.Sprintf(
 						`Workspace File missing: workspace %q does not provide file %q at path %q`,
@@ -168,6 +168,29 @@ func (e Entrypointer) Go() error {
 				Value:      "TimeoutExceeded",
 				ResultType: v1beta1.InternalTektonResultType,
 			})
+		}
+	}
+
+	if err == nil {
+		for wsName, paths := range e.WorkspaceFiles {
+			for name, path := range paths["produced"] {
+				if _, err = os.Stat(path); err != nil {
+					message := fmt.Sprintf(
+						`Workspace File missing: workspace %q does not provide file %q at path %q`,
+						wsName, name, path,
+					)
+					err = fmt.Errorf("%s: %v", message, err)
+					output = append(output, v1beta1.PipelineResourceResult{
+						Key:        "Reason",
+						Value:      "WorkspaceFileMissing",
+						ResultType: v1beta1.InternalTektonResultType,
+					}, v1beta1.PipelineResourceResult{
+						Key:        "Message",
+						Value:      message,
+						ResultType: v1beta1.InternalTektonResultType,
+					})
+				}
+			}
 		}
 	}
 

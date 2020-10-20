@@ -179,7 +179,7 @@ type PipelineRunSpec struct {
 	// Workspaces holds a set of workspace bindings that must match names
 	// with those declared in the pipeline.
 	// +optional
-	Workspaces []WorkspaceBinding `json:"workspaces,omitempty"`
+	Workspaces []PipelineRunWorkspaceBinding `json:"workspaces,omitempty"`
 	// TaskRunSpecs holds a set of runtime specs
 	// +optional
 	TaskRunSpecs []PipelineTaskRunSpec `json:"taskRunSpecs,omitempty"`

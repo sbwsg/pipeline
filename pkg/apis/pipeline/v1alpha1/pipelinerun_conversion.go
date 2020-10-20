@@ -57,7 +57,12 @@ func (source *PipelineRunSpec) ConvertTo(ctx context.Context, sink *v1beta1.Pipe
 	sink.Status = source.Status
 	sink.Timeout = source.Timeout
 	sink.PodTemplate = source.PodTemplate
-	sink.Workspaces = source.Workspaces
+	if source.Workspaces != nil {
+		sink.Workspaces = make([]v1beta1.PipelineRunWorkspaceBinding, len(source.Workspaces))
+		for i := range sink.Workspaces {
+			sink.Workspaces[i].WorkspaceBinding = source.Workspaces[i]
+		}
+	}
 	return nil
 }
 
@@ -91,6 +96,11 @@ func (sink *PipelineRunSpec) ConvertFrom(ctx context.Context, source *v1beta1.Pi
 	sink.Status = source.Status
 	sink.Timeout = source.Timeout
 	sink.PodTemplate = source.PodTemplate
-	sink.Workspaces = source.Workspaces
+	if source.Workspaces != nil {
+		sink.Workspaces = make([]v1beta1.WorkspaceBinding, len(source.Workspaces))
+		for i := range sink.Workspaces {
+			sink.Workspaces[i] = source.Workspaces[i].WorkspaceBinding
+		}
+	}
 	return nil
 }

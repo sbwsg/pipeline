@@ -251,7 +251,7 @@ func ValidateResourceBindings(p *v1beta1.PipelineSpec, pr *v1beta1.PipelineRun) 
 func ValidateWorkspaceBindings(p *v1beta1.PipelineSpec, pr *v1beta1.PipelineRun) error {
 	pipelineRunWorkspaces := make(map[string]v1beta1.WorkspaceBinding)
 	for _, binding := range pr.Spec.Workspaces {
-		pipelineRunWorkspaces[binding.Name] = binding
+		pipelineRunWorkspaces[binding.Name] = binding.WorkspaceBinding
 	}
 
 	for _, ws := range p.Workspaces {

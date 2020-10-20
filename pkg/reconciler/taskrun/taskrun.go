@@ -438,12 +438,14 @@ func (c *Reconciler) updateTaskRunWithDefaultWorkspaces(ctx context.Context, tr 
 		}
 
 		for _, trWorkspace := range tr.Spec.Workspaces {
-			workspaceBindings[trWorkspace.Name] = trWorkspace
+			workspaceBindings[trWorkspace.Name] = trWorkspace.WorkspaceBinding
 		}
 
-		tr.Spec.Workspaces = []v1beta1.WorkspaceBinding{}
+		tr.Spec.Workspaces = []v1beta1.TaskRunWorkspaceBinding{}
 		for _, wsBinding := range workspaceBindings {
-			tr.Spec.Workspaces = append(tr.Spec.Workspaces, wsBinding)
+			tr.Spec.Workspaces = append(tr.Spec.Workspaces, v1beta1.TaskRunWorkspaceBinding{
+				WorkspaceBinding: wsBinding,
+			})
 		}
 	}
 	return nil
@@ -714,8 +716,8 @@ func updateStoppedSidecarStatus(ctx context.Context, pod *corev1.Pod, tr *v1beta
 }
 
 // applyVolumeClaimTemplates and return WorkspaceBindings were templates is translated to PersistentVolumeClaims
-func applyVolumeClaimTemplates(workspaceBindings []v1beta1.WorkspaceBinding, owner metav1.OwnerReference) []v1beta1.WorkspaceBinding {
-	taskRunWorkspaceBindings := make([]v1beta1.WorkspaceBinding, 0, len(workspaceBindings))
+func applyVolumeClaimTemplates(workspaceBindings []v1beta1.TaskRunWorkspaceBinding, owner metav1.OwnerReference) []v1beta1.TaskRunWorkspaceBinding {
+	taskRunWorkspaceBindings := make([]v1beta1.TaskRunWorkspaceBinding, 0, len(workspaceBindings))
 	for _, wb := range workspaceBindings {
 		if wb.VolumeClaimTemplate == nil {
 			taskRunWorkspaceBindings = append(taskRunWorkspaceBindings, wb)
@@ -730,7 +732,9 @@ func applyVolumeClaimTemplates(workspaceBindings []v1beta1.WorkspaceBinding, own
 				ClaimName: volumeclaim.GetPersistentVolumeClaimName(wb.VolumeClaimTemplate, wb, owner),
 			},
 		}
-		taskRunWorkspaceBindings = append(taskRunWorkspaceBindings, b)
+		taskRunWorkspaceBindings = append(taskRunWorkspaceBindings, v1beta1.TaskRunWorkspaceBinding{
+			WorkspaceBinding: b,
+		})
 	}
 	return taskRunWorkspaceBindings
 }

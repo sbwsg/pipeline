@@ -40,8 +40,7 @@ type WorkspaceDeclaration struct {
 	// this field is false and so declared workspaces are required.
 	Optional bool `json:"optional,omitempty"`
 
-	// Files is...
-	Files []WorkspaceFileEntry `json:"files,optional,omitempty"`
+	Paths TaskWorkspacePaths `json:"paths,omitempty"`
 }
 
 // GetMountPath returns the mountPath for w which is the MountPath if provided or the
@@ -80,8 +79,16 @@ type WorkspaceBinding struct {
 	// Secret represents a secret that should populate this workspace.
 	// +optional
 	Secret *corev1.SecretVolumeSource `json:"secret,omitempty"`
+}
 
-	Files []WorkspaceFileEntry `json:"files,omitempty"`
+type TaskRunWorkspaceBinding struct {
+	WorkspaceBinding
+	Paths TaskRunWorkspaceBindingPaths `json:"paths,omitempty"`
+}
+
+type PipelineRunWorkspaceBinding struct {
+	WorkspaceBinding
+	Paths PipelineRunWorkspaceBindingPaths `json:"paths,omitempty"`
 }
 
 // WorkspacePipelineDeclaration creates a named slot in a Pipeline that a PipelineRun
@@ -102,6 +109,8 @@ type PipelineWorkspaceDeclaration struct {
 	// Optional marks a Workspace as not being required in PipelineRuns. By default
 	// this field is false and so declared workspaces are required.
 	Optional bool `json:"optional,omitempty"`
+
+	Paths PipelineWorkspacePaths
 }
 
 // WorkspacePipelineTaskBinding describes how a workspace passed into the pipeline should be
@@ -115,9 +124,24 @@ type WorkspacePipelineTaskBinding struct {
 	// for this binding (i.e. the volume will be mounted at this sub directory).
 	// +optional
 	SubPath string `json:"subPath,omitempty"`
+
+	Paths *TaskWorkspacePaths `json:"paths,omitempty"`
 }
 
-type WorkspaceFileEntry struct {
+type WorkspacePathEntry struct {
 	Name string `json:"name"`
 	Path string `json:"path,optional,omitempty"`
 }
+
+type TaskWorkspacePaths struct {
+	Expected []WorkspacePathEntry
+	Produced []WorkspacePathEntry
+}
+
+type TaskRunWorkspaceBindingPaths struct {
+	Expected []WorkspacePathEntry
+	Produced []WorkspacePathEntry
+}
+
+type PipelineWorkspacePaths []WorkspacePathEntry
+type PipelineRunWorkspaceBindingPaths []WorkspacePathEntry

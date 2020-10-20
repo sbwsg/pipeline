@@ -54,7 +54,12 @@ func (source *TaskRunSpec) ConvertTo(ctx context.Context, sink *v1beta1.TaskRunS
 	sink.Status = source.Status
 	sink.Timeout = source.Timeout
 	sink.PodTemplate = source.PodTemplate
-	sink.Workspaces = source.Workspaces
+	if source.Workspaces != nil {
+		sink.Workspaces = make([]v1beta1.TaskRunWorkspaceBinding, len(source.Workspaces))
+		for i := range sink.Workspaces {
+			sink.Workspaces[i].WorkspaceBinding = source.Workspaces[i]
+		}
+	}
 	sink.Params = source.Params
 	sink.Resources = source.Resources
 	// Deprecated fields
@@ -141,8 +146,13 @@ func (sink *TaskRunSpec) ConvertFrom(ctx context.Context, source *v1beta1.TaskRu
 	sink.Status = source.Status
 	sink.Timeout = source.Timeout
 	sink.PodTemplate = source.PodTemplate
-	sink.Workspaces = source.Workspaces
 	sink.Params = source.Params
 	sink.Resources = source.Resources
+	if source.Workspaces != nil {
+		sink.Workspaces = make([]WorkspaceBinding, len(source.Workspaces))
+		for i := range sink.Workspaces {
+			sink.Workspaces[i] = source.Workspaces[i].WorkspaceBinding
+		}
+	}
 	return nil
 }

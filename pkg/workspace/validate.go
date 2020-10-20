@@ -26,7 +26,7 @@ import (
 
 // ValidateBindings will return an error if the bound workspaces in binds don't satisfy the declared
 // workspaces in decls.
-func ValidateBindings(decls []v1beta1.WorkspaceDeclaration, binds []v1beta1.WorkspaceBinding) error {
+func ValidateBindings(decls []v1beta1.WorkspaceDeclaration, binds []v1beta1.TaskRunWorkspaceBinding) error {
 	// This will also be validated at webhook time but in case the webhook isn't invoked for some
 	// reason we'll invoke the same validation here.
 	for _, b := range binds {
@@ -66,7 +66,7 @@ func ValidateBindings(decls []v1beta1.WorkspaceDeclaration, binds []v1beta1.Work
 //
 // This is only useful to validate that WorkspaceBindings in TaskRuns are compatible
 // with affinity rules enforced by the AffinityAssistant.
-func ValidateOnlyOnePVCIsUsed(wb []v1beta1.WorkspaceBinding) error {
+func ValidateOnlyOnePVCIsUsed(wb []v1beta1.TaskRunWorkspaceBinding) error {
 	workspaceVolumes := make(map[string]bool)
 	for _, w := range wb {
 		if w.PersistentVolumeClaim != nil {

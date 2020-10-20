@@ -85,7 +85,7 @@ func main() {
 		return
 	}
 
-	var wf map[string]map[string]string
+	var wf map[string]map[string]map[string]string
 	if err := json.Unmarshal([]byte(*workspaceFilesJSON), &wf); err != nil {
 		wf = nil
 		log.Printf("non-fatal error: invalid workspaceFiles JSON object: %v", err)

@@ -112,10 +112,10 @@ func ApplyContexts(spec *v1beta1.TaskSpec, rtr *ResolvedTaskResources, tr *v1bet
 // ApplyWorkspaces applies the substitution from paths that the workspaces in declarations mounted to, the
 // volumes that bindings are realized with in the task spec and the PersistentVolumeClaim names for the
 // workspaces.
-func ApplyWorkspaces(spec *v1beta1.TaskSpec, declarations []v1beta1.WorkspaceDeclaration, bindings []v1beta1.WorkspaceBinding, vols map[string]corev1.Volume) *v1beta1.TaskSpec {
+func ApplyWorkspaces(spec *v1beta1.TaskSpec, declarations []v1beta1.WorkspaceDeclaration, bindings []v1beta1.TaskRunWorkspaceBinding, vols map[string]corev1.Volume) *v1beta1.TaskSpec {
 	stringReplacements := map[string]string{}
 
-	bindingMap := map[string]v1beta1.WorkspaceBinding{}
+	bindingMap := map[string]v1beta1.TaskRunWorkspaceBinding{}
 	for _, binding := range bindings {
 		bindingMap[binding.Name] = binding
 	}
@@ -127,8 +127,11 @@ func ApplyWorkspaces(spec *v1beta1.TaskSpec, declarations []v1beta1.WorkspaceDec
 			stringReplacements[prefix+"bound"] = "false"
 			stringReplacements[prefix+"path"] = ""
 
-			for _, file := range declaration.Files {
-				stringReplacements[prefix+"files."+file.Name+".path"] = ""
+			for _, p := range declaration.Paths.Expected {
+				stringReplacements[prefix+"paths.expected."+p.Name+".path"] = ""
+			}
+			for _, p := range declaration.Paths.Produced {
+				stringReplacements[prefix+"paths.produced."+p.Name+".path"] = ""
 			}
 		}
 
@@ -136,11 +139,22 @@ func ApplyWorkspaces(spec *v1beta1.TaskSpec, declarations []v1beta1.WorkspaceDec
 			stringReplacements[prefix+"bound"] = "true"
 			stringReplacements[prefix+"path"] = declaration.GetMountPath()
 
-			binding := bindingMap[declaration.Name]
-			fileMap := workspace.FilesToMap(declaration.GetMountPath(), declaration.Files, binding.Files)
-			for _, file := range declaration.Files {
-				if p, ok := fileMap[file.Name]; ok {
-					stringReplacements[prefix+"files."+file.Name+".path"] = p
+			{
+				binding := bindingMap[declaration.Name]
+				pathMap := workspace.PathsToMap(declaration.GetMountPath(), declaration.Paths.Expected, binding.Paths.Expected)
+				for _, path := range declaration.Paths.Expected {
+					if abs, ok := pathMap[path.Name]; ok {
+						stringReplacements[prefix+"paths.expected."+path.Name+".path"] = abs
+					}
+				}
+			}
+			{
+				binding := bindingMap[declaration.Name]
+				pathMap := workspace.PathsToMap(declaration.GetMountPath(), declaration.Paths.Produced, binding.Paths.Produced)
+				for _, path := range declaration.Paths.Produced {
+					if abs, ok := pathMap[path.Name]; ok {
+						stringReplacements[prefix+"paths.produced."+path.Name+".path"] = abs
+					}
 				}
 			}
 		}
