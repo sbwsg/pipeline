@@ -39,6 +39,22 @@ type WorkspaceDeclaration struct {
 	// Optional marks a Workspace as not being required in TaskRuns. By default
 	// this field is false and so declared workspaces are required.
 	Optional bool `json:"optional,omitempty"`
+
+	// +optional
+	Paths WorkspacePaths `json:"paths,omitempty"`
+}
+
+type WorkspacePaths struct {
+	// +optional
+	Expected []WorkspacePath `json:"expected,omitempty"`
+	// +optional
+	Produced []WorkspacePath `json:"produced,omitempty"`
+}
+
+type WorkspacePath struct {
+	Name string `json:"name"`
+	// +optional
+	Path string `json:"path,omitempty"`
 }
 
 // GetMountPath returns the mountPath for w which is the MountPath if provided or the
@@ -77,6 +93,9 @@ type WorkspaceBinding struct {
 	// Secret represents a secret that should populate this workspace.
 	// +optional
 	Secret *corev1.SecretVolumeSource `json:"secret,omitempty"`
+
+	// +optional
+	Paths WorkspacePaths `json:"paths,omitempty"`
 }
 
 // WorkspacePipelineDeclaration creates a named slot in a Pipeline that a PipelineRun

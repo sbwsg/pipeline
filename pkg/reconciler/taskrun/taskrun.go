@@ -619,6 +619,10 @@ func (c *Reconciler) createPod(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 	// Apply workspace resource substitution
 	ts = resources.ApplyWorkspaces(ts, ts.Workspaces, tr.Spec.Workspaces, workspaceVolumes)
 
+	// Apply workspace paths substitution
+	// MUST happen after ApplyWorkspaces, since ApplyWorkspaces applies variables to the mount path that this function relies on
+	ts = resources.ApplyWorkspacePaths(ts, ts.Workspaces, tr.Spec.Workspaces, workspaceVolumes)
+
 	// Apply task result substitution
 	ts = resources.ApplyTaskResults(ts)
 

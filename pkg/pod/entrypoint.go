@@ -18,6 +18,7 @@ package pod
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -86,7 +87,7 @@ var (
 // command, we must have fetched the image's ENTRYPOINT before calling this
 // method, using entrypoint_lookup.go.
 // Additionally, Step timeouts are added as entrypoint flag.
-func orderContainers(entrypointImage string, commonExtraEntrypointArgs []string, steps []corev1.Container, taskSpec *v1beta1.TaskSpec) (corev1.Container, []corev1.Container, error) {
+func orderContainers(entrypointImage string, commonExtraEntrypointArgs []string, steps []corev1.Container, taskSpec *v1beta1.TaskSpec, taskRunSpec *v1beta1.TaskRunSpec) (corev1.Container, []corev1.Container, error) {
 	initContainer := corev1.Container{
 		Name:  "place-tools",
 		Image: entrypointImage,
@@ -119,6 +120,23 @@ func orderContainers(entrypointImage string, commonExtraEntrypointArgs []string,
 				"-post_file", filepath.Join(mountPoint, fmt.Sprintf("%d", i)),
 				"-termination_path", terminationPath,
 			}
+		}
+
+		if i == 0 {
+			paths := expectedPaths(taskSpec, taskRunSpec)
+			pathsJSON, err := json.Marshal(paths)
+			if err != nil {
+				return corev1.Container{}, nil, fmt.Errorf("unable to marshal expected workspace paths: %s", err)
+			}
+			argsForEntrypoint = append(argsForEntrypoint, "-expected_paths", string(pathsJSON))
+		}
+		if i == len(steps)-1 {
+			paths := producedPaths(taskSpec, taskRunSpec)
+			pathsJSON, err := json.Marshal(paths)
+			if err != nil {
+				return corev1.Container{}, nil, fmt.Errorf("unable to marshal produced workspace paths: %s", err)
+			}
+			argsForEntrypoint = append(argsForEntrypoint, "-produced_paths", string(pathsJSON))
 		}
 		argsForEntrypoint = append(argsForEntrypoint, commonExtraEntrypointArgs...)
 		if taskSpec != nil {

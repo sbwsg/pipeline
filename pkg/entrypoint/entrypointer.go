@@ -66,6 +66,9 @@ type Entrypointer struct {
 	Results []string
 	// Timeout is an optional user-specified duration within which the Step must complete
 	Timeout *time.Duration
+
+	ExpectedPaths map[string]map[string]string
+	ProducedPaths map[string]map[string]string
 }
 
 // Waiter encapsulates waiting for files to exist.
@@ -128,6 +131,8 @@ func (e Entrypointer) Go() error {
 		err = fmt.Errorf("negative timeout specified")
 	}
 
+	err = validatePaths(e.ExpectedPaths, "Expected Workspace Path missing: workspace %[1]q does not contain %[2]q that Task expected at path %[3]q")
+
 	if err == nil {
 		ctx := context.Background()
 		var cancel context.CancelFunc
@@ -142,6 +147,9 @@ func (e Entrypointer) Go() error {
 				Value:      "TimeoutExceeded",
 				ResultType: v1beta1.InternalTektonResultType,
 			})
+		}
+		if err == nil {
+			err = validatePaths(e.ProducedPaths, "Produced Workspace Path missing: workspace %[1]q does not contain %[2]q that Task should have produced at path %[3]q")
 		}
 	}
 
@@ -195,4 +203,21 @@ func (e Entrypointer) WritePostFile(postFile string, err error) {
 	if postFile != "" {
 		e.PostWriter.Write(postFile)
 	}
+}
+
+// validatePaths takes map of workspace names to path names to absolute paths and checks if they
+// exist. If they do not exist an error is returned with messageFmt is printed using fmt.Errorf
+// with values in order <workspace-name>, <path-name>, <abs-path>.
+func validatePaths(wsps map[string]map[string]string, messageFmt string) error {
+	for ws, ps := range wsps {
+		for pName, p := range ps {
+			if _, err := os.Stat(p); os.IsNotExist(err) {
+				return fmt.Errorf(messageFmt, ws, pName, p)
+			} else if err != nil {
+				return fmt.Errorf("Unexpected error with workspace %q path %q at %q: %w",
+					ws, pName, p, err)
+			}
+		}
+	}
+	return nil
 }

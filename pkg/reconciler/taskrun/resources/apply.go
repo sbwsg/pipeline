@@ -26,6 +26,7 @@ import (
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	"github.com/tektoncd/pipeline/pkg/substitution"
+	"github.com/tektoncd/pipeline/pkg/workspace"
 )
 
 // ApplyParameters applies the params from a TaskRun.Input.Parameters to a TaskSpec
@@ -141,6 +142,46 @@ func ApplyWorkspaces(spec *v1beta1.TaskSpec, declarations []v1beta1.WorkspaceDec
 			stringReplacements[fmt.Sprintf("workspaces.%s.claim", binding.Name)] = ""
 		}
 	}
+	return ApplyReplacements(spec, stringReplacements, map[string][]string{})
+}
+
+func ApplyWorkspacePaths(spec *v1beta1.TaskSpec, declarations []v1beta1.WorkspaceDeclaration, bindings []v1beta1.WorkspaceBinding, vols map[string]corev1.Volume) *v1beta1.TaskSpec {
+	stringReplacements := map[string]string{}
+
+	bindingMap := map[string]v1beta1.WorkspaceBinding{}
+	for _, binding := range bindings {
+		bindingMap[binding.Name] = binding
+	}
+
+	for _, declaration := range declarations {
+		prefix := fmt.Sprintf("workspaces.%s", declaration.Name)
+		binding := bindingMap[declaration.Name]
+
+		{
+			pathReplacements := workspace.PathReplacements(declaration.GetMountPath(), declaration.Paths.Expected, binding.Paths.Expected)
+			for name, p := range pathReplacements {
+				key := fmt.Sprintf("%s.paths.expected.%s.path", prefix, name)
+				if declaration.Optional && binding.Name == "" {
+					stringReplacements[key] = ""
+				} else {
+					stringReplacements[key] = p
+				}
+			}
+		}
+
+		{
+			pathReplacements := workspace.PathReplacements(declaration.GetMountPath(), declaration.Paths.Produced, binding.Paths.Produced)
+			for name, p := range pathReplacements {
+				key := fmt.Sprintf("%s.paths.produced.%s.path", prefix, name)
+				if declaration.Optional && binding.Name == "" {
+					stringReplacements[key] = ""
+				} else {
+					stringReplacements[key] = p
+				}
+			}
+		}
+	}
+
 	return ApplyReplacements(spec, stringReplacements, map[string][]string{})
 }
 

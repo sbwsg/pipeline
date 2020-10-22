@@ -1,0 +1,137 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: workspace-paths-content-default-path
+data:
+  in.txt: hello, world!
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: workspace-paths-content-custom-path
+data:
+  test.txt: hello, world!
+---
+kind: Task
+apiVersion: tekton.dev/v1beta1
+metadata:
+  name: file-copier
+spec:
+  workspaces:
+  - name: content
+    paths:
+      expected:
+      - name: file-to-read
+        path: /in.txt
+  - name: output
+    paths:
+      produced:
+      - name: file-to-write
+        path: /out.txt
+  steps:
+  - name: print-content
+    image: alpine:3.12.0
+    script: |
+      cat "$(workspaces.content.paths.expected.file-to-read.path)" > "$(workspaces.output.paths.produced.file-to-write.path)"
+---
+kind: TaskRun
+apiVersion: tekton.dev/v1beta1
+metadata:
+  generateName: workspace-paths-default-input-output-
+spec:
+  taskRef:
+    name: file-copier
+  workspaces:
+  - name: content
+    configMap:
+      name: workspace-paths-content-default-path
+  - name: output
+    emptyDir: {}
+---
+kind: TaskRun
+apiVersion: tekton.dev/v1beta1
+metadata:
+  generateName: workspace-paths-default-output-
+spec:
+  taskRef:
+    name: file-copier
+  workspaces:
+  - name: content
+    configMap:
+      name: workspace-paths-content-custom-path
+    paths:
+      expected:
+      - name: file-to-read
+        path: /test.txt
+  - name: output
+    emptyDir: {}
+---
+kind: TaskRun
+apiVersion: tekton.dev/v1beta1
+metadata:
+  generateName: workspace-paths-custom-output-
+spec:
+  taskRef:
+    name: file-copier
+  workspaces:
+  - name: content
+    configMap:
+      name: workspace-paths-content-default-path
+  - name: output
+    emptyDir: {}
+    paths:
+      produced:
+      - name: file-to-write
+        path: /huzzah.txt
+---
+kind: TaskRun
+apiVersion: tekton.dev/v1beta1
+metadata:
+  generateName: workspace-paths-invalid-extra-produced-
+spec:
+  taskRef:
+    name: file-copier
+  workspaces:
+  - name: content
+    configMap:
+      name: workspace-paths-content-default-path
+  - name: output
+    emptyDir: {}
+    paths:
+      produced:
+      - name: file-that-wont-exist
+        path: /file.nope
+---
+kind: TaskRun
+apiVersion: tekton.dev/v1beta1
+metadata:
+  generateName: workspace-paths-missing-expected-
+spec:
+  taskRef:
+    name: file-copier
+  workspaces:
+  - name: content
+    emptyDir: {}
+  - name: output
+    emptyDir: {}
+---
+kind: TaskRun
+apiVersion: tekton.dev/v1beta1
+metadata:
+  generateName: workspace-paths-print-optional-
+spec:
+  taskSpec:
+    workspaces:
+    - name: content
+      optional: true
+      paths:
+        expected:
+        - name: file-to-read
+          path: /in.txt
+    steps:
+    - name: print-content
+      image: alpine:3.12.0
+      script: |
+        echo "hello"
+        echo "bound: $(workspaces.content.bound)"
+        echo "file path: \"$(workspaces.content.paths.expected.file-to-read.path)\""

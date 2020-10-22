@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"io"
 	"log"
@@ -40,8 +41,10 @@ var (
 	postFile            = flag.String("post_file", "", "If specified, file to write upon completion")
 	terminationPath     = flag.String("termination_path", "/tekton/termination", "If specified, file to write upon termination")
 	results             = flag.String("results", "", "If specified, list of file names that might contain task results")
-	waitPollingInterval = time.Second
 	timeout             = flag.Duration("timeout", time.Duration(0), "If specified, sets timeout for step")
+	expectedPaths       = flag.String("expected_paths", "{}", "If specified, an object of workspace names to path names to absolute paths")
+	producedPaths       = flag.String("produced_paths", "{}", "If specified, an object of workspace names to path names to absolute paths")
+	waitPollingInterval = time.Second
 )
 
 func cp(src, dst string) error {
@@ -93,6 +96,16 @@ func main() {
 		}
 	}
 
+	expectedPaths, err := parseWorkspacePaths(*expectedPaths)
+	if err != nil {
+		log.Printf("Error parsing expected paths: %v", err)
+	}
+
+	producedPaths, err := parseWorkspacePaths(*producedPaths)
+	if err != nil {
+		log.Printf("Error parsing produced paths: %v", err)
+	}
+
 	e := entrypoint.Entrypointer{
 		Entrypoint:      *ep,
 		WaitFiles:       strings.Split(*waitFiles, ","),
@@ -105,6 +118,8 @@ func main() {
 		PostWriter:      &realPostWriter{},
 		Results:         strings.Split(*results, ","),
 		Timeout:         timeout,
+		ExpectedPaths:   expectedPaths,
+		ProducedPaths:   producedPaths,
 	}
 
 	// Copy any creds injected by the controller into the $HOME directory of the current
@@ -136,4 +151,12 @@ func main() {
 			log.Fatalf("Error executing command: %v", err)
 		}
 	}
+}
+
+func parseWorkspacePaths(value string) (map[string]map[string]string, error) {
+	p := map[string]map[string]string{}
+	if err := json.Unmarshal([]byte(value), &p); err != nil {
+		return nil, err
+	}
+	return p, nil
 }
