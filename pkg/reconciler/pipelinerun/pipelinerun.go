@@ -19,6 +19,7 @@ package pipelinerun
 import (
 	"context"
 	"fmt"
+	"log"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -308,8 +309,85 @@ func (c *Reconciler) updatePipelineResults(ctx context.Context, pr *v1beta1.Pipe
 			pr.Namespace, pr.Name, err)
 		return
 	}
-	resolvedResultRefs := resources.ResolvePipelineResultRefs(pr.Status, pipelineSpec.Results)
-	pr.Status.PipelineResults = getPipelineRunResults(pipelineSpec, resolvedResultRefs)
+
+	taskStatuses := map[string]*v1beta1.PipelineRunTaskRunStatus{}
+	for _, trStatus := range pr.Status.TaskRuns {
+		taskStatuses[trStatus.PipelineTaskName] = trStatus
+	}
+
+	// Refactor to be resources.ApplyTaskRunResultsToPipelineRunResults() ?
+	runResults := []v1beta1.PipelineRunResult{}
+	for _, pipelineResult := range pipelineSpec.Results {
+		log.Printf("\n\n\n\nPIPELINE RESULT: %v\n\n\n\n", pipelineResult)
+		vars, _ := v1beta1.GetVarSubstitutionExpressionsForPipelineResult(pipelineResult)
+		validPipelineResult := true
+		replacements := map[string]string{}
+		for _, variable := range vars {
+			// Check that it's a valid task result variable
+			parts := strings.Split(variable, ".")
+			if len(parts) != 4 || parts[0] != "tasks" || parts[2] != "results" {
+				log.Printf("\n\n\n\nVAR %s DOES NOT HAVE len=4 or [0]=task or [2]=results\n\n\n\n", variable)
+				validPipelineResult = false
+				break
+			}
+
+			// Check that it references an actual pipeline task
+			pipelineTaskName := parts[1]
+			status, statusFound := taskStatuses[pipelineTaskName]
+			if !statusFound {
+				log.Printf("\n\n\n\nVAR %s -> NO STATUS FOUND FOR REFERENCED TASK\n\n\n\n", variable)
+				validPipelineResult = false
+				break
+			}
+
+			// Check that the referenced pipeline task was successful
+			cond := status.Status.GetCondition(apis.ConditionSucceeded)
+			if cond == nil || cond.Status != "True" {
+				log.Printf("\n\n\n\nVAR %s -> CONDITION SUCCEEDED STATUS NIL OR NOT TRUE\n\n\n\n", variable)
+				validPipelineResult = false
+				break
+			}
+
+			// Check that it references an actual result of the pipeline task
+			var resultValue *string
+			for _, trResult := range taskStatuses[pipelineTaskName].Status.TaskRunResults {
+				if trResult.Name == parts[3] {
+					resultValue = &trResult.Value
+					break
+				}
+			}
+			if resultValue == nil {
+				log.Printf("\n\n\n\nVAR %s -> resultValue IS NIL\n\n\n\n", variable)
+				validPipelineResult = false
+				break
+			}
+
+			replacements[variable] = *resultValue
+		}
+		log.Printf("\n\n\n\nVARS: %v\nIS VALID: %v\n\n\n\n", vars, validPipelineResult)
+		if validPipelineResult {
+			pipelineRunResultValue := pipelineResult.Value
+			for variable, value := range replacements {
+				v := fmt.Sprintf("$(%s)", variable)
+				log.Printf("\n\n\n\nREPLACING VAR %q WITH %q IN %q\nDOLLAR FORM: %s\n\n\n\n", variable, value, pipelineRunResultValue, v)
+				pipelineRunResultValue = strings.Replace(pipelineRunResultValue, v, value, -1)
+				log.Printf("\n\n\n\nNEW VALUE %q\n\n\n\n", pipelineRunResultValue)
+			}
+			runResults = append(runResults, v1beta1.PipelineRunResult{Name: pipelineResult.Name, Value: pipelineRunResultValue})
+		}
+	}
+
+	log.Printf("RUN RESULTS: %v", runResults)
+	if len(runResults) > 0 {
+		pr.Status.PipelineResults = runResults
+	}
+	//resolvedResultRefs := resources.ResolvePipelineResultRefs(pr.Status, pipelineSpec.Results)
+	//pr.Status.PipelineResults = getPipelineRunResults(pipelineSpec, resolvedResultRefs)
+	//TODO:
+	//  for each  pipeline result
+	//  	look up tasks referenced by pipeline result
+	//  	if any referenced task is non-successful, do not emit pipeline result
+	//	else replace result
 }
 
 func (c *Reconciler) reconcile(ctx context.Context, pr *v1beta1.PipelineRun, getPipelineFunc resources.GetPipeline) error {

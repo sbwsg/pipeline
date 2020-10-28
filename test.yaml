@@ -1,0 +1,34 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: print-date
+spec:
+  results:
+    - name: current-date-unix-timestamp
+      description: The current date in unix timestamp format
+  steps:
+    - name: print-date-unix-timestamp
+      image: bash:latest
+      script: |
+        echo "ehllo" > "$(results.current-date-unix-timestamp.path)"
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: simple-pipeline
+spec:
+  results:
+    - name: current-date-unix-timestamp
+      value: $(tasks.print-date.results.current-date-unix-timestamp)
+  tasks:
+    - name: print-date
+      taskRef:
+        name: print-date
+---
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: simple-pipeline
+spec:
+  pipelineRef:
+    name: simple-pipeline
