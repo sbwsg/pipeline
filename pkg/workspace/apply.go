@@ -82,7 +82,7 @@ func getDeclaredWorkspace(name string, w []v1beta1.WorkspaceDeclaration) (*v1bet
 	return nil, fmt.Errorf("even though validation should have caught it, bound workspace %s did not exist in declared workspaces", name)
 }
 
-// Apply will update the StepTemplate and Volumes declaration in ts so that the workspaces
+// Apply updates the StepTemplate, Sidecars and Volumes declaration in ts so that workspaces
 // specified through wb combined with the declared workspaces in ts will be available for
 // all containers in the resulting pod.
 func Apply(ts v1beta1.TaskSpec, wb []v1beta1.WorkspaceBinding, v map[string]corev1.Volume) (*v1beta1.TaskSpec, error) {
@@ -106,12 +106,17 @@ func Apply(ts v1beta1.TaskSpec, wb []v1beta1.WorkspaceBinding, v map[string]core
 		// Get the volume we should be using for this binding
 		vv := v[wb[i].Name]
 
-		ts.StepTemplate.VolumeMounts = append(ts.StepTemplate.VolumeMounts, corev1.VolumeMount{
+		volumeMount := corev1.VolumeMount{
 			Name:      vv.Name,
 			MountPath: w.GetMountPath(),
 			SubPath:   wb[i].SubPath,
 			ReadOnly:  w.ReadOnly,
-		})
+		}
+
+		ts.StepTemplate.VolumeMounts = append(ts.StepTemplate.VolumeMounts, volumeMount)
+		for si := range ts.Sidecars {
+			ts.Sidecars[si].VolumeMounts = append(ts.Sidecars[si].VolumeMounts, volumeMount)
+		}
 
 		// Only add this volume if it hasn't already been added
 		if !addedVolumes.Has(vv.Name) {
