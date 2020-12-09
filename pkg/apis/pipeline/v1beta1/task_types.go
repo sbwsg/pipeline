@@ -128,6 +128,8 @@ type Step struct {
 	// Timeout is the time after which the step times out. Defaults to never.
 	// Refer to Go's ParseDuration documentation for expected format: https://golang.org/pkg/time/#ParseDuration
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
+	// Workspaces is the list of workspaces from the Task that this Step wants access to
+	Workspaces []WorkspaceUsage `json:"workspaces,omitempty"`
 }
 
 // Sidecar has nearly the same data structure as Step, consisting of a Container and an optional Script, but does not have the ability to timeout.
@@ -138,6 +140,8 @@ type Sidecar struct {
 	//
 	// If Script is not empty, the Step cannot have an Command or Args.
 	Script string `json:"script,omitempty"`
+	// Workspaces is the list of workspaces from the Task that this Sidecar wants exclusive access to
+	Workspaces []WorkspaceUsage `json:"workspaces,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

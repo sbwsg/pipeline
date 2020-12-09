@@ -1502,6 +1502,13 @@
         "workingDir": {
           "description": "Container's working directory. If not specified, the container runtime's default will be used, which might be configured in the container image. Cannot be updated.",
           "type": "string"
+        },
+        "workspaces": {
+          "description": "Workspaces is the list of workspaces from the Task that this Sidecar wants exclusive access to",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1beta1.WorkspaceUsage"
+          }
         }
       }
     },
@@ -1688,6 +1695,13 @@
         "workingDir": {
           "description": "Container's working directory. If not specified, the container runtime's default will be used, which might be configured in the container image. Cannot be updated.",
           "type": "string"
+        },
+        "workspaces": {
+          "description": "Workspaces is the list of workspaces from the Task that this Step wants access to",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1beta1.WorkspaceUsage"
+          }
         }
       }
     },
@@ -2380,6 +2394,18 @@
         },
         "workspace": {
           "description": "Workspace is the name of the workspace declared by the pipeline",
+          "type": "string"
+        }
+      }
+    },
+    "v1beta1.WorkspaceUsage": {
+      "description": "WorkspaceUsage is a struct that resources use to declare that they actively require a Workspace to function. As one example, Steps may declare their use of a Workspace to request exclusive access to it.",
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
           "type": "string"
         }
       }

@@ -111,3 +111,10 @@ type WorkspacePipelineTaskBinding struct {
 	// +optional
 	SubPath string `json:"subPath,omitempty"`
 }
+
+// WorkspaceUsage is a struct that resources use to declare that they
+// actively require a Workspace to function. As one example, Steps may
+// declare their use of a Workspace to request exclusive access to it.
+type WorkspaceUsage struct {
+	Name string `json:"name"`
+}

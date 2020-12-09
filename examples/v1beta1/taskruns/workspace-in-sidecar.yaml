@@ -1,6 +1,5 @@
 # This example TaskRun demonstrates how to share a Workspace between Steps
-# and a Sidecar. The Sidecar must be explicitly configured to mount the
-# volume backing a Workspace so that it has access to it.
+# and a Sidecar.
 #
 # The Step writes a file to the Workspace and then waits for the Sidecar
 # to respond. The Sidecar sees the Step's file and writes its response.

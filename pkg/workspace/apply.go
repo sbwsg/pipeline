@@ -98,31 +98,85 @@ func Apply(ts v1beta1.TaskSpec, wb []v1beta1.WorkspaceBinding, v map[string]core
 		ts.StepTemplate = &corev1.Container{}
 	}
 
-	for i := range wb {
-		w, err := getDeclaredWorkspace(wb[i].Name, ts.Workspaces)
+	shared := map[string]v1beta1.WorkspaceBinding{}
+	for _, w := range wb {
+		shared[w.Name] = w
+	}
+
+	exclusives := []string{}
+	for i := range ts.Steps {
+		step := &ts.Steps[i]
+		for _, ws := range step.Workspaces {
+			bind, ok := shared[ws.Name]
+			if !ok {
+				return nil, fmt.Errorf("No binding found for Workspace %q referenced by Step %d (%q)", ws.Name, i, step.Name)
+			}
+			exclusives = append(exclusives, ws.Name)
+			decl, err := getDeclaredWorkspace(ws.Name, ts.Workspaces)
+			if err != nil {
+				return nil, err
+			}
+			vol := v[ws.Name]
+			if !addedVolumes.Has(vol.Name) {
+				ts.Volumes = append(ts.Volumes, vol)
+				addedVolumes.Insert(vol.Name)
+			}
+			volumeMount := workspaceVolumeMount(vol, *decl, bind)
+			step.VolumeMounts = append(step.VolumeMounts, volumeMount)
+		}
+	}
+
+	for i := range ts.Sidecars {
+		sidecar := &ts.Sidecars[i]
+		for _, ws := range sidecar.Workspaces {
+			bind, ok := shared[ws.Name]
+			if !ok {
+				return nil, fmt.Errorf("No binding found for Workspace %q referenced by Sidecar %d (%q)", ws.Name, i, sidecar.Name)
+			}
+			exclusives = append(exclusives, ws.Name)
+			decl, err := getDeclaredWorkspace(ws.Name, ts.Workspaces)
+			if err != nil {
+				return nil, err
+			}
+			vol := v[ws.Name]
+			if !addedVolumes.Has(vol.Name) {
+				ts.Volumes = append(ts.Volumes, vol)
+				addedVolumes.Insert(vol.Name)
+			}
+			volumeMount := workspaceVolumeMount(vol, *decl, bind)
+			sidecar.VolumeMounts = append(sidecar.VolumeMounts, volumeMount)
+		}
+	}
+
+	for _, exclusive := range exclusives {
+		delete(shared, exclusive)
+	}
+
+	for bindName, bind := range shared {
+		decl, err := getDeclaredWorkspace(bindName, ts.Workspaces)
 		if err != nil {
 			return nil, err
 		}
-		// Get the volume we should be using for this binding
-		vv := v[wb[i].Name]
-
-		volumeMount := corev1.VolumeMount{
-			Name:      vv.Name,
-			MountPath: w.GetMountPath(),
-			SubPath:   wb[i].SubPath,
-			ReadOnly:  w.ReadOnly,
+		vol := v[bindName]
+		if !addedVolumes.Has(vol.Name) {
+			ts.Volumes = append(ts.Volumes, vol)
+			addedVolumes.Insert(vol.Name)
 		}
-
+		volumeMount := workspaceVolumeMount(vol, *decl, bind)
 		ts.StepTemplate.VolumeMounts = append(ts.StepTemplate.VolumeMounts, volumeMount)
 		for si := range ts.Sidecars {
 			ts.Sidecars[si].VolumeMounts = append(ts.Sidecars[si].VolumeMounts, volumeMount)
 		}
-
-		// Only add this volume if it hasn't already been added
-		if !addedVolumes.Has(vv.Name) {
-			ts.Volumes = append(ts.Volumes, vv)
-			addedVolumes.Insert(vv.Name)
-		}
 	}
+
 	return &ts, nil
+}
+
+func workspaceVolumeMount(vol corev1.Volume, decl v1beta1.WorkspaceDeclaration, bind v1beta1.WorkspaceBinding) corev1.VolumeMount {
+	return corev1.VolumeMount{
+		Name:      vol.Name,
+		MountPath: decl.GetMountPath(),
+		SubPath:   bind.SubPath,
+		ReadOnly:  decl.ReadOnly,
+	}
 }

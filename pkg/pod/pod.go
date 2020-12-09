@@ -239,8 +239,12 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 	mergedPodContainers := stepContainers
 
 	// Merge sidecar containers with step containers.
-	for _, sc := range sidecarContainers {
-		sc.Name = names.SimpleNameGenerator.RestrictLength(fmt.Sprintf("%v%v", sidecarPrefix, sc.Name))
+	for i, sc := range sidecarContainers {
+		if sc.Name == "" {
+			sc.Name = names.SimpleNameGenerator.RestrictLength(fmt.Sprintf("%vunnamed-%d", sidecarPrefix, i))
+		} else {
+			sc.Name = names.SimpleNameGenerator.RestrictLength(fmt.Sprintf("%v%v", sidecarPrefix, sc.Name))
+		}
 		mergedPodContainers = append(mergedPodContainers, sc)
 	}
 
