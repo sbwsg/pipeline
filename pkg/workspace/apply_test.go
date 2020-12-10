@@ -509,6 +509,163 @@ func TestApply(t *testing.T) {
 				ReadOnly:  true,
 			}},
 		},
+	}, {
+		name: "workspace isolated to step does not appear in step template or sidecars",
+		ts: v1beta1.TaskSpec{
+			Steps: []v1beta1.Step{{
+				Workspaces: []v1beta1.WorkspaceUsage{{
+					Name: "source",
+				}},
+			}},
+			Sidecars: []v1beta1.Sidecar{{Container: corev1.Container{Name: "foo"}}},
+			Workspaces: []v1beta1.WorkspaceDeclaration{{
+				Name: "source",
+			}},
+		},
+		workspaces: []v1beta1.WorkspaceBinding{{
+			Name: "source",
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: "testpvc",
+			},
+		}},
+		expectedTaskSpec: v1beta1.TaskSpec{
+			StepTemplate: &corev1.Container{},
+			Volumes: []corev1.Volume{{
+				Name: "ws-mnq6l",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: "testpvc",
+					},
+				},
+			}},
+			Steps: []v1beta1.Step{{
+				Container: corev1.Container{
+					VolumeMounts: []corev1.VolumeMount{{
+						Name:      "ws-mnq6l",
+						MountPath: "/workspace/source",
+					}},
+				},
+				Workspaces: []v1beta1.WorkspaceUsage{{
+					Name: "source",
+				}},
+			}},
+			Sidecars: []v1beta1.Sidecar{{Container: corev1.Container{Name: "foo"}}},
+			Workspaces: []v1beta1.WorkspaceDeclaration{{
+				Name: "source",
+			}},
+		},
+	}, {
+		name: "workspace isolated to sidecar does not appear in steps",
+		ts: v1beta1.TaskSpec{
+			Steps: []v1beta1.Step{{
+				Container: corev1.Container{Name: "step1"},
+			}},
+			Sidecars: []v1beta1.Sidecar{{
+				Workspaces: []v1beta1.WorkspaceUsage{{
+					Name: "source",
+				}},
+			}},
+			Workspaces: []v1beta1.WorkspaceDeclaration{{
+				Name: "source",
+			}},
+		},
+		workspaces: []v1beta1.WorkspaceBinding{{
+			Name: "source",
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: "testpvc",
+			},
+		}},
+		expectedTaskSpec: v1beta1.TaskSpec{
+			StepTemplate: &corev1.Container{},
+			Volumes: []corev1.Volume{{
+				Name: "ws-hvpvf",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: "testpvc",
+					},
+				},
+			}},
+			Steps: []v1beta1.Step{{
+				Container: corev1.Container{Name: "step1"},
+			}},
+			Sidecars: []v1beta1.Sidecar{{
+				Container: corev1.Container{
+					VolumeMounts: []corev1.VolumeMount{{
+						Name:      "ws-hvpvf",
+						MountPath: "/workspace/source",
+					}},
+				},
+				Workspaces: []v1beta1.WorkspaceUsage{{
+					Name: "source",
+				}},
+			}},
+			Workspaces: []v1beta1.WorkspaceDeclaration{{
+				Name: "source",
+			}},
+		},
+	}, {
+		name: "workspace isolated to one step and one sidecar does not appear in step template",
+		ts: v1beta1.TaskSpec{
+			Steps: []v1beta1.Step{{
+				Workspaces: []v1beta1.WorkspaceUsage{{
+					Name: "source",
+				}},
+			}, {
+				Container: corev1.Container{Name: "step2"},
+			}},
+			Sidecars: []v1beta1.Sidecar{{
+				Workspaces: []v1beta1.WorkspaceUsage{{
+					Name: "source",
+				}},
+			}},
+			Workspaces: []v1beta1.WorkspaceDeclaration{{
+				Name: "source",
+			}},
+		},
+		workspaces: []v1beta1.WorkspaceBinding{{
+			Name: "source",
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: "testpvc",
+			},
+		}},
+		expectedTaskSpec: v1beta1.TaskSpec{
+			StepTemplate: &corev1.Container{},
+			Volumes: []corev1.Volume{{
+				Name: "ws-mjxbm",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: "testpvc",
+					},
+				},
+			}},
+			Steps: []v1beta1.Step{{
+				Container: corev1.Container{
+					VolumeMounts: []corev1.VolumeMount{{
+						Name:      "ws-mjxbm",
+						MountPath: "/workspace/source",
+					}},
+				},
+				Workspaces: []v1beta1.WorkspaceUsage{{
+					Name: "source",
+				}},
+			}, {
+				Container: corev1.Container{Name: "step2"},
+			}},
+			Sidecars: []v1beta1.Sidecar{{
+				Container: corev1.Container{
+					VolumeMounts: []corev1.VolumeMount{{
+						Name:      "ws-mjxbm",
+						MountPath: "/workspace/source",
+					}},
+				},
+				Workspaces: []v1beta1.WorkspaceUsage{{
+					Name: "source",
+				}},
+			}},
+			Workspaces: []v1beta1.WorkspaceDeclaration{{
+				Name: "source",
+			}},
+		},
 	}} {
 		t.Run(tc.name, func(t *testing.T) {
 			vols := workspace.CreateVolumes(tc.workspaces)
