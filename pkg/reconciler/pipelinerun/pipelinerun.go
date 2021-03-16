@@ -32,6 +32,7 @@ import (
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	"github.com/tektoncd/pipeline/pkg/artifacts"
 	clientset "github.com/tektoncd/pipeline/pkg/client/clientset/versioned"
+	"github.com/tektoncd/pipeline/pkg/client/clientset/versioned/scheme"
 	pipelinerunreconciler "github.com/tektoncd/pipeline/pkg/client/injection/reconciler/pipeline/v1beta1/pipelinerun"
 	listersv1alpha1 "github.com/tektoncd/pipeline/pkg/client/listers/pipeline/v1alpha1"
 	listers "github.com/tektoncd/pipeline/pkg/client/listers/pipeline/v1beta1"
@@ -107,6 +108,8 @@ const (
 	// ReasonRequiredWorkspaceMarkedOptional indicates an optional workspace
 	// has been passed to a Task that is expecting a non-optional workspace
 	ReasonRequiredWorkspaceMarkedOptional = "RequiredWorkspaceMarkedOptional"
+	//
+	ReasonInvalidRemoteTask = "ReasonInvalidRemoteTask"
 )
 
 // Reconciler implements controller.Reconciler for Configuration resources.
@@ -344,6 +347,39 @@ func (c *Reconciler) reconcile(ctx context.Context, pr *v1beta1.PipelineRun, get
 			"Error retrieving pipeline for pipelinerun %s/%s: %s",
 			pr.Namespace, pr.Name, err)
 		return controller.NewPermanentError(err)
+	}
+
+	// HACK: If we see a TaskResolved Run then we're going to sneakily replace it with a TaskRun
+	// that uses the TaskResolved's extraFields as the Task Spec.
+	for _, run := range pr.Status.Runs {
+		cond := run.Status.GetCondition("TaskResolved")
+		if cond != nil && cond.Status == corev1.ConditionTrue {
+			// Get PipelineTask from run.Status.PipelineTaskName
+			// Replace Run with TaskRun!
+			for i := range pipelineSpec.Tasks {
+				pt := &pipelineSpec.Tasks[i]
+				if pt.Name == run.PipelineTaskName {
+					task, err := convertResourceYAMLToTask(run.Status.ExtraFields.Raw)
+					if err != nil {
+						pr.Status.MarkFailed(ReasonInvalidRemoteTask,
+							"Not a valid Task YAML stored in run's extraFields")
+						return controller.NewPermanentError(err)
+					}
+
+					task.Spec.SetDefaults(contexts.WithUpgradeViaDefaulting(ctx))
+					if err := task.Spec.Validate(ctx); err != nil {
+						pr.Status.MarkFailed(ReasonInvalidRemoteTask,
+							"Error validating remote Task in %s: %v", pt.Name, err)
+						return controller.NewPermanentError(err)
+					}
+
+					pt.TaskRef = nil
+					pt.TaskSpec = &v1beta1.EmbeddedTask{
+						TaskSpec: task.Spec,
+					}
+				}
+			}
+		}
 	}
 
 	// Store the fetched PipelineSpec on the PipelineRun for auditing
@@ -749,36 +785,56 @@ func (c *Reconciler) createTaskRun(ctx context.Context, rprt *resources.Resolved
 func (c *Reconciler) createRun(ctx context.Context, rprt *resources.ResolvedPipelineRunTask, pr *v1beta1.PipelineRun) (*v1alpha1.Run, error) {
 	logger := logging.FromContext(ctx)
 	taskRunSpec := pr.GetTaskRunSpec(rprt.PipelineTask.Name)
-	r := &v1alpha1.Run{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            rprt.RunName,
-			Namespace:       pr.Namespace,
-			OwnerReferences: []metav1.OwnerReference{pr.GetOwnerReference()},
-			Labels:          getTaskrunLabels(pr, rprt.PipelineTask.Name, true),
-			Annotations:     getTaskrunAnnotations(pr),
-		},
-		Spec: v1alpha1.RunSpec{
-			Ref:                rprt.PipelineTask.TaskRef,
-			Params:             rprt.PipelineTask.Params,
-			ServiceAccountName: taskRunSpec.TaskServiceAccountName,
-			PodTemplate:        taskRunSpec.TaskPodTemplate,
-		},
+
+	var r *v1alpha1.Run
+
+	if rprt.PipelineTask.TaskRef.Bundle != "" {
+		// We are creating a TaskResolver Run!
+		r = &v1alpha1.Run{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            rprt.RunName,
+				Namespace:       pr.Namespace,
+				OwnerReferences: []metav1.OwnerReference{pr.GetOwnerReference()},
+				Labels:          getTaskrunLabels(pr, rprt.PipelineTask.Name, true),
+				Annotations:     getTaskrunAnnotations(pr),
+			},
+			Spec: v1alpha1.RunSpec{
+				Ref: rprt.PipelineTask.TaskRef,
+			},
+		}
+	} else {
+		r = &v1alpha1.Run{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            rprt.RunName,
+				Namespace:       pr.Namespace,
+				OwnerReferences: []metav1.OwnerReference{pr.GetOwnerReference()},
+				Labels:          getTaskrunLabels(pr, rprt.PipelineTask.Name, true),
+				Annotations:     getTaskrunAnnotations(pr),
+			},
+			Spec: v1alpha1.RunSpec{
+				Ref:                rprt.PipelineTask.TaskRef,
+				Params:             rprt.PipelineTask.Params,
+				ServiceAccountName: taskRunSpec.TaskServiceAccountName,
+				PodTemplate:        taskRunSpec.TaskPodTemplate,
+			},
+		}
+
+		var pipelinePVCWorkspaceName string
+		var err error
+		r.Spec.Workspaces, pipelinePVCWorkspaceName, err = getTaskrunWorkspaces(pr, rprt)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set the affinity assistant annotation in case the custom task creates TaskRuns or Pods
+		// that can take advantage of it.
+		if !c.isAffinityAssistantDisabled(ctx) && pipelinePVCWorkspaceName != "" {
+			r.Annotations[workspace.AnnotationAffinityAssistantName] = getAffinityAssistantName(pipelinePVCWorkspaceName, pr.Name)
+		}
+
+		logger.Infof("Creating a new Run object %s", rprt.RunName)
 	}
 
-	var pipelinePVCWorkspaceName string
-	var err error
-	r.Spec.Workspaces, pipelinePVCWorkspaceName, err = getTaskrunWorkspaces(pr, rprt)
-	if err != nil {
-		return nil, err
-	}
-
-	// Set the affinity assistant annotation in case the custom task creates TaskRuns or Pods
-	// that can take advantage of it.
-	if !c.isAffinityAssistantDisabled(ctx) && pipelinePVCWorkspaceName != "" {
-		r.Annotations[workspace.AnnotationAffinityAssistantName] = getAffinityAssistantName(pipelinePVCWorkspaceName, pr.Name)
-	}
-
-	logger.Infof("Creating a new Run object %s", rprt.RunName)
 	return c.PipelineClientSet.TektonV1alpha1().Runs(pr.Namespace).Create(ctx, r, metav1.CreateOptions{})
 }
 
@@ -1177,4 +1233,15 @@ func updatePipelineRunStatusFromRuns(logger *zap.SugaredLogger, pr *v1beta1.Pipe
 			}
 		}
 	}
+}
+
+func convertResourceYAMLToTask(yaml []byte) (*v1beta1.Task, error) {
+	decoder := scheme.Codecs.UniversalDeserializer()
+	t := v1beta1.Task{}
+	_, _, err := decoder.Decode(yaml, nil, &t)
+	if err != nil {
+		return nil, err
+	}
+
+	return &t, nil
 }

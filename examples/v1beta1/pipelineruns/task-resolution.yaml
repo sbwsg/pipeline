@@ -1,0 +1,93 @@
+kind: Pipeline
+apiVersion: tekton.dev/v1beta1
+
+metadata:
+  name: clone-lint-deploy
+
+spec:
+
+  workspaces:
+  - name: shared
+
+  tasks:
+
+  - name: welcome
+    taskRef:
+      apiVersion: ociref.tekton.dev/v1alpha1
+      kind: Task
+      bundle: kind-registry:5000/tasks/print-welcome:0.1
+      name: print-welcome
+
+  - name: clone
+    runAfter: [welcome]
+    taskRef:
+      apiVersion: catalogref.tekton.dev/v1alpha1
+      kind: Task
+      # bundle: tekton # But no bundle needed for default catalog
+      name: git-clone
+    workspaces:
+    - name: output
+      workspace: shared
+    params:
+    - name: url
+      value: https://github.com/tektoncd/results.git
+
+  - name: lint
+    runAfter: [clone]
+    taskRef:
+      apiVersion: gitref.tekton.dev/v1alpha1
+      kind: Task
+      bundle: https://github.com/tektoncd/catalog.git
+      name: /task/golang-build/0.1/golang-build.yaml
+    workspaces:
+    - name: source
+      workspace: shared
+    params:
+    - name: package
+      value: github.com/tektoncd/pipeline
+
+  - name: test
+    runAfter: [lint]
+    taskRef:
+      apiVersion: gcsref.tekton.dev/v1alpha1
+      kind: Task
+      bundle: gs://my-tekton-tasks
+      name: /golang-test.yaml
+    workspaces:
+    - name: source
+      workspace: shared
+    params:
+    - name: package
+      value: github.com/tektoncd/pipeline
+    - name: context
+      value: ""
+
+  - name: print-message
+    runAfter: [test]
+    taskRef:
+      apiVersion: catalogref.tekton.dev/v1alpha1
+      bundle: internal
+      kind: Task
+      name: print-motd
+
+---
+kind: PipelineRun
+apiVersion: tekton.dev/v1beta1
+
+metadata:
+  name: run-clone-lint-deploy
+
+spec:
+
+  pipelineRef:
+    name: clone-lint-deploy
+
+  workspaces:
+  - name: shared
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 256Mi

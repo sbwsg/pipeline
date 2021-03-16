@@ -103,11 +103,17 @@ func validatePipelineTaskName(name string) *apis.FieldError {
 
 func validatePipelineTask(ctx context.Context, t PipelineTask, taskNames sets.String) *apis.FieldError {
 	cfg := config.FromContextOrDefaults(ctx)
-	errs := validatePipelineTaskName(t.Name)
 
 	hasTaskRef := t.TaskRef != nil
 	hasTaskSpec := t.TaskSpec != nil
 	isCustomTask := cfg.FeatureFlags.EnableCustomTasks && hasTaskRef && t.TaskRef.APIVersion != ""
+	isTaskResolver := isCustomTask && t.TaskRef.Bundle != "" && t.TaskRef.Name != ""
+
+	errs := &apis.FieldError{}
+
+	if !isTaskResolver {
+		errs = validatePipelineTaskName(t.Name)
+	}
 
 	// can't have both taskRef and taskSpec at the same time
 	if hasTaskRef && hasTaskSpec {
@@ -129,7 +135,9 @@ func validatePipelineTask(ctx context.Context, t PipelineTask, taskNames sets.St
 	taskNames[t.Name] = struct{}{}
 
 	if hasTaskRef {
-		if t.TaskRef.Name != "" {
+		if isTaskResolver {
+			// name can be anything.
+		} else if t.TaskRef.Name != "" {
 			// TaskRef name must be a valid k8s name
 			if errSlice := validation.IsQualifiedName(t.TaskRef.Name); len(errSlice) != 0 {
 				errs = errs.Also(apis.ErrInvalidValue(strings.Join(errSlice, ","), "name"))
@@ -177,7 +185,7 @@ func validatePipelineTask(ctx context.Context, t PipelineTask, taskNames sets.St
 				errs = errs.Also(apis.ErrInvalidValue(fmt.Sprintf("invalid bundle reference (%s)", err.Error()), "taskref.bundle"))
 			}
 		}
-	} else if t.TaskRef != nil && t.TaskRef.Bundle != "" {
+	} else if !isCustomTask && t.TaskRef != nil && t.TaskRef.Bundle != "" {
 		errs = errs.Also(apis.ErrDisallowedFields("taskref.bundle"))
 	}
 
