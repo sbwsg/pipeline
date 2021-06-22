@@ -9,22 +9,38 @@ spec:
     script: |
       echo "hello world"
 ---
-kind: TaskRun
-apiVersion: tekton.dev/v1beta1
-metadata:
-  name: footaskrun-task-ref
-spec:
-  taskRef:
-    name: footask
+# kind: TaskRun
+# apiVersion: tekton.dev/v1beta1
+# metadata:
+#   name: footaskrun-task-ref
+# spec:
+#   taskRef:
+#     name: footask
+# ---
+# kind: TaskRun
+# apiVersion: tekton.dev/v1beta1
+# metadata:
+#   name: footaskrun-inline-spec
+# spec:
+#   taskSpec:
+#     steps:
+#     - name: foostep
+#       image: alpine:latest
+#       script: |
+#         echo "hello world"
 ---
 kind: TaskRun
 apiVersion: tekton.dev/v1beta1
 metadata:
-  name: footaskrun-inline-spec
+  name: footaskrun-bundle-spec
 spec:
-  taskSpec:
-    steps:
-    - name: foostep
-      image: alpine:latest
-      script: |
-        echo "hello world"
+spec:
+  taskRef:
+    name: git-clone
+    bundle: gcr.io/tekton-releases/catalog/upstream/git-clone:0.4
+  params:
+  - name: url
+    value: https://github.com/tektoncd/results.git
+  workspaces:
+  - name: output
+    emptyDir: {}

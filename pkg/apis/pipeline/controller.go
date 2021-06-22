@@ -24,6 +24,9 @@ const (
 	// TaskRunControllerName holds the name of the TaskRun controller
 	TaskRunControllerName = "TaskRun"
 
-	// TaskRunControllerName holds the name of the PipelineRun controller
+	// RunControllerName holds the name of the Custom Task controller
 	RunControllerName = "Run"
+
+	// ResolverControllerName holds the name of the Resolver controller
+	ResolverControllerName = "Resolver"
 )
