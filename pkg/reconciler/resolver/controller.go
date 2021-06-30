@@ -90,7 +90,6 @@ func NewController() func(context.Context, configmap.Watcher) *controller.Impl {
 			FilterFunc: acceptResourcesWithUnpopulatedStatusSpec,
 			Handler: cache.ResourceEventHandlerFuncs{
 				AddFunc: impl.Enqueue,
-				// UpdateFunc: controller.PassNew(impl.Enqueue),
 			},
 		})
 

@@ -81,4 +81,4 @@ data:
   enable-custom-tasks: "false"
   # Setting this flag will determine which gated features are enabled.
   # Acceptable values are "stable" or "alpha".
-  enable-api-fields: "stable"
+  enable-api-fields: "alpha"

@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"strings"
 	"time"
 
@@ -84,22 +85,27 @@ func (o *Resolver) List() ([]remote.ResolvedObject, error) {
 }
 
 func (o *Resolver) Get(kind, name string) (runtime.Object, error) {
+	log.Println("\n\n\nOCI RESOLVER GET!\n\n\n")
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), o.timeout)
 	defer cancel()
+	log.Println("\n\n\nRETRIEVE IMAGE!\n\n\n")
 	img, err := o.retrieveImage(timeoutCtx)
 	if err != nil {
 		return nil, err
 	}
 
+	log.Println("\n\n\nIMG.MANIFEST!\n\n\n")
 	manifest, err := img.Manifest()
 	if err != nil {
 		return nil, fmt.Errorf("could not parse image manifest: %w", err)
 	}
 
+	log.Println("\n\n\nCHECK IMAGE COMPLIANCE!\n\n\n")
 	if err := o.checkImageCompliance(manifest); err != nil {
 		return nil, err
 	}
 
+	log.Println("\n\n\nIMG LAYERS\n\n\n")
 	layers, err := img.Layers()
 	if err != nil {
 		return nil, fmt.Errorf("could not read image layers: %w", err)
@@ -114,11 +120,13 @@ func (o *Resolver) Get(kind, name string) (runtime.Object, error) {
 		layerMap[digest.String()] = l
 	}
 
+	log.Println("\n\n\nREADING LAYERS!\n\n\n")
 	for idx, l := range manifest.Layers {
 		lKind := l.Annotations[KindAnnotation]
 		lName := l.Annotations[TitleAnnotation]
 
 		if kind == lKind && name == lName {
+			log.Println("\n\n\nSUCCESS: LAYER FOUND!\n\n\n")
 			obj, err := readTarLayer(layerMap[l.Digest.String()])
 			if err != nil {
 				// This could still be a raw layer so try to read it as that instead.
@@ -127,6 +135,7 @@ func (o *Resolver) Get(kind, name string) (runtime.Object, error) {
 			return obj, nil
 		}
 	}
+	log.Println("\n\n\nNO LAYER FOUND!\n\n\n")
 	return nil, fmt.Errorf("could not find object in image with kind: %s and name: %s", kind, name)
 }
 

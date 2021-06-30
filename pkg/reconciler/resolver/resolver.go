@@ -3,6 +3,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"log"
 
 	clientset "github.com/tektoncd/pipeline/pkg/client/clientset/versioned"
 	listers "github.com/tektoncd/pipeline/pkg/client/listers/pipeline/v1beta1"
@@ -58,8 +59,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, key string) error {
 		return nil
 	}
 
-	// resolve task from ref / embedded spec / oci bundle
-	// taskMeta, taskSpec, err := resources.GetTaskData(ctx, tr, getTaskFunc)
 	getTaskFunc, err := resources.GetTaskFuncFromTaskRun(ctx, r.KubeClientSet, r.PipelineClientSet, tr)
 	if err != nil {
 		err = fmt.Errorf("error getting task func for taskrun %q: %w", key, err)
@@ -68,7 +67,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, key string) error {
 		return err
 	}
 
+	log.Println("\n\n\nGETTING TASK DATA!\n\n\n")
+
 	taskMeta, taskSpec, err := resources.GetTaskData(ctx, tr, getTaskFunc)
+
+	log.Println("\n\n\nGETTASKDATA RETURNED!\n\n\n")
+
 	if err != nil {
 		err = fmt.Errorf("error getting task func for taskrun %q: %w", key, err)
 		tr.Status.MarkResourceFailed(podconvert.ReasonFailedResolution, err)
