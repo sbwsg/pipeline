@@ -72,25 +72,20 @@ func GetTaskFunc(ctx context.Context, k8s kubernetes.Interface, tekton clientset
 		kind = tr.Kind
 	}
 
-	if cfg.FeatureFlags.EnableTektonOCIBundles && tr != nil && tr.Bundle != "" {
-		log.Printf("\n\n\nI SEE A BUNDLE! %v\n\n\n", tr.Bundle)
-	}
-
+	log.Println("GET TASK FUNC SWITCHING")
 	switch {
 	case cfg.FeatureFlags.EnableTektonOCIBundles && tr != nil && tr.Bundle != "":
 		// Return an inline function that implements GetTask by calling Resolver.Get with the specified task type and
 		// casting it to a TaskObject.
 		return func(ctx context.Context, name string) (v1beta1.TaskObject, error) {
-			log.Printf("\n\n\nFETCHING BUNDLE! Namespace: %s, Bundle: %s\n\n\n", namespace, tr.Bundle)
-
-			log.Printf("\n\n\nCONSTRUCTING K8s CHAIN\n\n\n")
+			log.Println("CONSTRUCTING K8S CHAIN")
 			// If there is a bundle url at all, construct an OCI resolver to fetch the task.
 			kc, err := k8schain.New(ctx, k8s, k8schain.Options{
 				Namespace:          namespace,
 				ServiceAccountName: saName,
 			})
+			log.Println("DONE CONSTRUCTING K8S CHAIN")
 
-			log.Printf("\n\n\nCREATED K8SCHAIN!\n\n\n")
 			if err != nil {
 				return nil, fmt.Errorf("failed to get keychain: %w", err)
 			}
@@ -103,14 +98,11 @@ func GetTaskFunc(ctx context.Context, k8s kubernetes.Interface, tekton clientset
 				return nil, err
 			}
 
-			log.Printf("\n\n\nGOT OBJECT IT LOOKS LIKE\n\n\n")
 			// If the resolved object is already a v1beta1.{Cluster}Task, it should be returnable as a
 			// v1beta1.TaskObject.
 			if ti, ok := obj.(v1beta1.TaskObject); ok {
 				return ti, nil
 			}
-
-			log.Printf("\n\n\nOBJECT IS NOT A V1BETA1 TASK OBJECT???\n\n\n")
 
 			// If this object is not already a v1beta1 object, figure out what type it is actually and try to coerce it
 			// into a v1beta1.TaskInterface compatible object.
@@ -124,8 +116,6 @@ func GetTaskFunc(ctx context.Context, k8s kubernetes.Interface, tekton clientset
 				err := tt.ConvertTo(ctx, betaTask)
 				return betaTask, err
 			}
-
-			log.Printf("\n\n\nOBJECT IS NOT A COMPATIBLE ANYTHING???\n\n\n")
 
 			return nil, fmt.Errorf("failed to convert obj %s into Task", obj.GetObjectKind().GroupVersionKind().String())
 		}, nil

@@ -121,8 +121,5 @@ func NewController(namespace string, images pipeline.Images) func(context.Contex
 // other taskruns are ignored.
 func ignoreResourcesWithEmptyStatusSpec(obj interface{}) bool {
 	tr, ok := obj.(*v1beta1.TaskRun)
-	if !ok {
-		return false
-	}
-	return tr.Status.TaskSpec != nil
+	return ok && tr.Status.TaskSpec != nil
 }

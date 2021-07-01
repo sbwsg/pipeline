@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	clientset "github.com/tektoncd/pipeline/pkg/client/clientset/versioned"
 	listers "github.com/tektoncd/pipeline/pkg/client/listers/pipeline/v1beta1"
 	podconvert "github.com/tektoncd/pipeline/pkg/pod"
@@ -32,6 +33,8 @@ type Reconciler struct {
 var _ controller.Reconciler = &Reconciler{}
 
 func (r *Reconciler) Reconcile(ctx context.Context, key string) error {
+	log.Println("RESOLVER RECONCILER HAS BEEN CALLED")
+
 	if r.configStore != nil {
 		ctx = r.configStore.ToContext(ctx)
 	}
@@ -59,6 +62,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, key string) error {
 		return nil
 	}
 
+	tr.Status.MarkResourceOngoing(v1beta1.TaskRunReasonResolving, "taskrun references are being resolved")
+
 	getTaskFunc, err := resources.GetTaskFuncFromTaskRun(ctx, r.KubeClientSet, r.PipelineClientSet, tr)
 	if err != nil {
 		err = fmt.Errorf("error getting task func for taskrun %q: %w", key, err)
@@ -67,11 +72,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, key string) error {
 		return err
 	}
 
-	log.Println("\n\n\nGETTING TASK DATA!\n\n\n")
-
 	taskMeta, taskSpec, err := resources.GetTaskData(ctx, tr, getTaskFunc)
-
-	log.Println("\n\n\nGETTASKDATA RETURNED!\n\n\n")
 
 	if err != nil {
 		err = fmt.Errorf("error getting task func for taskrun %q: %w", key, err)

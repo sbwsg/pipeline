@@ -19,6 +19,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"log"
 	"reflect"
 	"strings"
 
@@ -58,15 +59,12 @@ func NewController() func(context.Context, configmap.Watcher) *controller.Impl {
 			clusterTaskLister: clusterTaskInformer.Lister(),
 
 			LeaderAwareFuncs: reconciler.LeaderAwareFuncs{
-				// TODO: not sure what purpose this serves yet but get error
-				// from knative on controller startup without it.
 				PromoteFunc: func(bkt reconciler.Bucket, enq func(reconciler.Bucket, types.NamespacedName)) error {
 					all, err := lister.List(labels.Everything())
 					if err != nil {
 						return err
 					}
 					for _, elt := range all {
-						// TODO: Consider letting users specify a filter in options.
 						enq(bkt, types.NamespacedName{
 							Namespace: elt.GetNamespace(),
 							Name:      elt.GetName(),
@@ -76,6 +74,7 @@ func NewController() func(context.Context, configmap.Watcher) *controller.Impl {
 				},
 			},
 		}
+
 		configStore := config.NewStore(logger.Named("config-store"))
 		configStore.WatchConfigs(cmw)
 		r.configStore = configStore
@@ -89,7 +88,14 @@ func NewController() func(context.Context, configmap.Watcher) *controller.Impl {
 		taskRunInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
 			FilterFunc: acceptResourcesWithUnpopulatedStatusSpec,
 			Handler: cache.ResourceEventHandlerFuncs{
-				AddFunc: impl.Enqueue,
+				AddFunc: func(obj interface{}) {
+					log.Printf("ADDING TASKRUN")
+					impl.Enqueue(obj)
+				},
+				UpdateFunc: func(old, obj interface{}) {
+					log.Printf("UPDATING TASKRUN")
+					impl.Enqueue(obj)
+				},
 			},
 		})
 
@@ -99,8 +105,5 @@ func NewController() func(context.Context, configmap.Watcher) *controller.Impl {
 
 func acceptResourcesWithUnpopulatedStatusSpec(obj interface{}) bool {
 	tr, ok := obj.(*v1beta1.TaskRun)
-	if !ok {
-		return false
-	}
-	return tr.Status.TaskSpec == nil
+	return ok && tr.Status.TaskSpec == nil
 }
